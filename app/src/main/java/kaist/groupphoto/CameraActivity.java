@@ -1,17 +1,19 @@
 package kaist.groupphoto;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
-import android.view.Menu;
 import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -31,10 +33,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 
 //AppCompatActivity
-public class CameraActivity extends Activity  implements CameraBridgeViewBase.CvCameraViewListener2, View.OnTouchListener{
+public class CameraActivity extends Activity  implements CameraBridgeViewBase.CvCameraViewListener2 {
 
     private static final String    TAG                 = "AutoCam::MainActivity";
     private static final Scalar FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
@@ -57,11 +60,29 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
     private int                    mDetectorType       = JAVA_DETECTOR;
 
-    private float                  mRelativeFaceSize   = 0.2f;
-    private int                    mAbsoluteFaceSize   = 0;
+    private float mRelativeFaceSize = 0.2f;
+    private int mAbsoluteFaceSize = 0;
+    private float mRelativeEyeSize = 0.05f;
+    private int mAbsoluteEyeSize = 0;
+
 
     private MyOpenCVView            mOpenCvCameraView;
 
+    private Spinner modeSpinner;
+    private Button captureBtn;
+    private TextView faceNumberTv;
+    private TextView eyeNumberTv;
+
+    private int maxFaceNumber;
+    private int maxEyeNumber;
+
+    private double maxEyeSize;
+    private double minEyeSize;
+    private double maxFaceSize;
+    private double minFaceSize;
+
+    //0 : Full mode, 1 : Group Shooting mode, 2 : Composite mode
+    private int captureMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,11 +91,42 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         setContentView(R.layout.activity_camera);
         Log.i(TAG, "called onCreate");
         Camera.Size resolution = null;
+
+        ArrayList spinnerItem = new ArrayList<String>();
+        spinnerItem.add("Full");
+        spinnerItem.add("Group");
+        spinnerItem.add("Composite");
+        ArrayAdapter adapter = new ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, spinnerItem);
+        modeSpinner = (Spinner) findViewById(R.id.spinner_mode);
+        modeSpinner.setAdapter(adapter);
+        modeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                captureMode = i;
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> adapterView) {
+
+            }
+        });
+
+        eyeNumberTv = (TextView) findViewById(R.id.tv_eye_number);
+        faceNumberTv = (TextView) findViewById(R.id.tv_face_number);
+        captureBtn = (Button) findViewById(R.id.btn_capture);
+        captureBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                takePicture();
+            }
+        });
+
         mOpenCvCameraView = (MyOpenCVView) findViewById(R.id.fd_activity_surface_view);
         mOpenCvCameraView.setVisibility(CameraBridgeViewBase.VISIBLE);
+
         //mOpenCvCameraView.setResolution(resolution);
         mOpenCvCameraView.setCvCameraViewListener(this);
-        mOpenCvCameraView.setCameraIndex( CameraBridgeViewBase.CAMERA_ID_FRONT);
+        mOpenCvCameraView.setCameraIndex( CameraBridgeViewBase.CAMERA_ID_BACK);
     }
 
     @Override
@@ -123,137 +175,78 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             int height = mGray.rows();
             if (Math.round(height * mRelativeFaceSize) > 0) {
                 mAbsoluteFaceSize = Math.round(height * mRelativeFaceSize);
+                mAbsoluteEyeSize = Math.round(height * mRelativeEyeSize);
             }
+
         }
 
-        MatOfRect faces = new MatOfRect();
+        MatOfRect faceRect = new MatOfRect();
+        MatOfRect eyeRect = new MatOfRect();
 
         if (mDetectorType == JAVA_DETECTOR) {
             if (mJavaDetector != null) {
-                mJavaDetector.detectMultiScale(mGray, faces, 1.1, 2, 2, // TODO: objdetect.CV_HAAR_SCALE_IMAGE
+                mJavaDetector.detectMultiScale(mGray, faceRect, 1.1, 2, 2, // TODO: objdetect.CV_HAAR_SCALE_IMAGE
                         new Size(mAbsoluteFaceSize, mAbsoluteFaceSize), new Size());
 
+            }
+            if ( mJavaEyeDetector != null) {
+                mJavaEyeDetector.detectMultiScale(mGray, eyeRect, 1.1, 2, 2, // TODO: objdetect.CV_HAAR_SCALE_IMAGE
+                        new Size(mAbsoluteEyeSize, mAbsoluteEyeSize), new Size());
             }
         }
         else {
             Log.e(TAG, "Detection method is not selected!");
         }
 
-        Rect[] facesArray = faces.toArray();
-        for (int i = 0; i < facesArray.length; i++) {
-            Imgproc.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
-            Log.d(TAG, "faces array " + String.valueOf(i));
-
+        final Rect[] facesArray = faceRect.toArray();
+        final Rect[] eyesArray = eyeRect.toArray();
+        for (int i = 0; i < eyesArray.length; i++) {
+            Imgproc.rectangle(mRgba, eyesArray[i].tl(), eyesArray[i].br(), FACE_RECT_COLOR, 3);
+            Log.d(TAG, "eye array " + String.valueOf(i));
         }
+        //TODO
         if(facesArray.length > 0) {
-            //Thread t = getBaseContext().getMainLooper().getThread();
-            Thread t = new Thread(new Runnable() {
+            runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss_S");
-                    String currentDateandTime = sdf.format(new Date());
-                    String saveDir = Environment.getExternalStorageDirectory().getPath() + "/DCIM/OCV/FDSave";
-                    File dirCheck = new File(saveDir);
-                    if(!dirCheck.exists()) {
-                        dirCheck.mkdirs();
-                    }
-                    String fileName = saveDir + "/" + currentDateandTime + ".jpg";
-                    try {
-                        mOpenCvCameraView.takePicture(fileName);
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
+                    int faceNum = facesArray.length;
+                    int eyeNum = eyesArray.length;
+                    faceNumberTv.setText("Faces : " + faceNum);
+                    if ( maxFaceNumber < faceNum )
+                        maxFaceNumber = faceNum;
+                    eyeNumberTv.setText("Eyes : " + eyeNum);
+                    if ( maxEyeNumber < eyeNum )
+                        maxEyeNumber = eyeNum;
                 }
             });
-            t.start();
+
         }
 
         return mRgba;
     }
 
-
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        Log.i(TAG, "called onCreateOptionsMenu");
-        mItemFace50 = menu.add("Face size 50%");
-        mItemFace40 = menu.add("Face size 40%");
-        mItemFace30 = menu.add("Face size 30%");
-        mItemFace20 = menu.add("Face size 20%");
-        mItemCameraId = menu.add("Front");
-        mItemExit = menu.add("Exit");
-        mItemExit.setVisible(true);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        Log.i(TAG, "called onOptionsItemSelected; selected item: " + item);
-        if (item == mItemFace50)
-            setMinFaceSize(0.5f);
-        else if (item == mItemFace40)
-            setMinFaceSize(0.4f);
-        else if (item == mItemFace30)
-            setMinFaceSize(0.3f);
-        else if (item == mItemFace20)
-            setMinFaceSize(0.2f);
-        else if(item == mItemCameraId) {
-            changeCamera();
-        } else if(item == mItemExit) {
-            finish();
-        }
-        return true;
-    }
-
-
-    @SuppressLint("SimpleDateFormat")
-    @Override
-    public boolean onTouch(View v, MotionEvent event) {
-        Log.i(TAG, "onTouch event");
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
-        String currentDateandTime = sdf.format(new Date());
-        String saveDir = Environment.getExternalStorageDirectory().getPath() + "/DCIM/OCV/TouchSave";
-        File dirCheck = new File(saveDir);
-        if(!dirCheck.exists()) {
-            dirCheck.mkdirs();
-        }
-        String fileName = saveDir + "/touch_picture_" + currentDateandTime + ".jpg";
-        try {
-            mOpenCvCameraView.takePicture(fileName);
-
-            Toast.makeText(this, fileName + " saved", Toast.LENGTH_SHORT).show();
-        } catch(Exception ex) {
-            ex.printStackTrace();
-        }
-        return false;
-    }
-
-
-    private boolean usingFront = true;
-    private void changeCamera() {
-        try {
-            mOpenCvCameraView.disableView();
-            if(usingFront) {
-                mOpenCvCameraView.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_BACK);
-                mItemCameraId.setTitle("Back");
-            } else {
-                mOpenCvCameraView.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_FRONT);
-                mItemCameraId.setTitle("Front");
+    private void takePicture() {
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss_S");
+                String currentDateandTime = sdf.format(new Date());
+                String saveDir = Environment.getExternalStorageDirectory().getPath() + "/DCIM/GroupPhoto/";
+                File dirCheck = new File(saveDir);
+                if(!dirCheck.exists()) {
+                    dirCheck.mkdirs();
+                }
+                String fileName = saveDir + "/" + currentDateandTime + ".jpg";
+                try {
+                    mOpenCvCameraView.takePicture(fileName);
+                    Toast.makeText(getApplicationContext(), fileName + " saved", Toast.LENGTH_SHORT).show();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
             }
-            usingFront = !usingFront;
-            mOpenCvCameraView.enableView();
-            //onResume();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        });
+        t.start();
     }
-
-
-    private void setMinFaceSize(float faceSize) {
-        mRelativeFaceSize = faceSize;
-        mAbsoluteFaceSize = 0;
-    }
-
 
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
@@ -320,7 +313,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
                     }
 
                     mOpenCvCameraView.enableView();
-                    mOpenCvCameraView.setOnTouchListener(CameraActivity.this);
+//                    mOpenCvCameraView.setOnTouchListener(CameraActivity.this);
                 } break;
                 default:
                 {

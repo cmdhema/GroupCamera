@@ -1,13 +1,53 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
+    android:orientation="horizontal"
     android:layout_height="match_parent" >
-    <!--
-        <org.opencv.android.JavaCameraView
-        -->
-    <kaist.groupphoto.MyOpenCVView
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:id="@+id/fd_activity_surface_view" />
+
+
+    <RelativeLayout
+        android:layout_weight="1"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <kaist.groupphoto.MyOpenCVView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:id="@+id/fd_activity_surface_view" />
+
+        <TextView
+            android:textColor="#ffffff"
+            android:id="@+id/tv_face_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+        <TextView
+            android:layout_below="@+id/tv_face_number"
+            android:textColor="#ffffff"
+            android:id="@+id/tv_eye_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+    </RelativeLayout>
+
+
+    <RelativeLayout
+        android:orientation="vertical"
+        android:layout_weight="8"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <Spinner
+            android:id="@+id/spinner_mode"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"></Spinner>
+
+        <Button
+            android:id="@+id/btn_capture"
+            android:layout_centerInParent="true"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="촬영"/>
+    </RelativeLayout>
+
 
 </LinearLayout>
