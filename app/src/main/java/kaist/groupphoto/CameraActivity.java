@@ -2,11 +2,19 @@ package kaist.groupphoto;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.MediaStore;
+import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
@@ -20,69 +28,110 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Rect;
-import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
+
+import kaist.groupphoto.composite.CompositeListener;
+import kaist.groupphoto.composite.CropView;
+import kaist.groupphoto.composite.Point;
 
 //AppCompatActivity
 public class CameraActivity extends Activity  implements CameraBridgeViewBase.CvCameraViewListener2 {
 
     private static final String    TAG                 = "AutoCam::MainActivity";
-    private static final Scalar FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
-    public static final int        JAVA_DETECTOR       = 0;
+//    private static final Scalar FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
+//    public static final int        JAVA_DETECTOR       = 0;
 
-    private MenuItem mItemFace50;
-    private MenuItem               mItemFace40;
-    private MenuItem               mItemFace30;
-    private MenuItem               mItemFace20;
-    private MenuItem               mItemCameraId;
-    private MenuItem               mItemExit;
+    final int REQ_CODE_SELECT_IMAGE=100;
 
     private Mat mRgba;
-    private Mat                    mGray;
     private File                   mCascadeFile;
-    private File                   mHaarCascadeEyeFile;
     private CascadeClassifier mJavaDetector;
 
-    private CascadeClassifier      mJavaEyeDetector;
 
-    private int                    mDetectorType       = JAVA_DETECTOR;
-
-    private float mRelativeFaceSize = 0.2f;
+    private float mRelativeFaceSize = 0.3f;
     private int mAbsoluteFaceSize = 0;
-    private float mRelativeEyeSize = 0.05f;
-    private int mAbsoluteEyeSize = 0;
 
+    private MyOpenCVView mOpenCvCameraView;
 
-    private MyOpenCVView            mOpenCvCameraView;
+    private Bitmap originalImage;
 
     private Spinner modeSpinner;
     private Button captureBtn;
     private TextView faceNumberTv;
     private TextView eyeNumberTv;
 
+    private int faceNumber;
     private int maxFaceNumber;
-    private int maxEyeNumber;
-
-    private double maxEyeSize;
-    private double minEyeSize;
-    private double maxFaceSize;
-    private double minFaceSize;
 
     //0 : Full mode, 1 : Group Shooting mode, 2 : Composite mode
-    private int captureMode;
+    private int captureMode = 0;
+
+    private Mat mGrayscaleImage;
+
+    private CropView cropView;
+
+
+    CompositeListener compositeListener = new CompositeListener() {
+        @Override
+        public void cropDone(List<Point> points) {
+            int widthOfscreen = 0;
+            int heightOfScreen = 0;
+
+            DisplayMetrics dm = new DisplayMetrics();
+            try {
+                getWindowManager().getDefaultDisplay().getMetrics(dm);
+            } catch (Exception ex) {
+            }
+            widthOfscreen = dm.widthPixels;
+            heightOfScreen = dm.heightPixels;
+
+            Bitmap croppedImage = Bitmap.createBitmap(widthOfscreen, heightOfScreen, originalImage.getConfig());
+
+            Canvas canvas = new Canvas(croppedImage);
+            Paint paint = new Paint();
+            paint.setAntiAlias(true);
+            Path path = new Path();
+            for (int i = 0; i < points.size(); i++) {
+                path.lineTo(points.get(i).x, points.get(i).y);
+            }
+            canvas.drawPath(path, paint);
+            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
+            canvas.drawBitmap(originalImage, 0, 0, paint);
+//            compositeImageView.setImageBitmap(croppedImage);
+        }
+    };
+
+    private void setFullMode() {
+
+    }
+
+    private void setGroupShootingMode() {
+
+    }
+
+    private void setCompositeMode() {
+
+    }
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,6 +140,9 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         setContentView(R.layout.activity_camera);
         Log.i(TAG, "called onCreate");
         Camera.Size resolution = null;
+
+        cropView = (CropView) findViewById(R.id.cropview);
+        cropView.setOnCompositeListener(compositeListener);
 
         ArrayList spinnerItem = new ArrayList<String>();
         spinnerItem.add("Full");
@@ -103,6 +155,14 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                 captureMode = i;
+
+                if ( captureMode == 0 ) {
+//                    detectFa
+                } else if (captureMode == 1 ) {
+
+                } else if ( captureMode == 2 ) {
+
+                }
             }
 
             @Override
@@ -117,16 +177,56 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         captureBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                takePicture();
+
+                int captureNumber = 0;
+
+                while ( captureNumber < captureNumByFormula(faceNumber) ) {
+                    takePicture();
+                    captureNumber++;
+                }
+
+                saveMaxEyesPhoto();
             }
         });
 
         mOpenCvCameraView = (MyOpenCVView) findViewById(R.id.fd_activity_surface_view);
         mOpenCvCameraView.setVisibility(CameraBridgeViewBase.VISIBLE);
 
-        //mOpenCvCameraView.setResolution(resolution);
+//        mOpenCvCameraView.setResolution(resolution);
         mOpenCvCameraView.setCvCameraViewListener(this);
         mOpenCvCameraView.setCameraIndex( CameraBridgeViewBase.CAMERA_ID_BACK);
+        mOpenCvCameraView.enableFpsMeter();
+    }
+
+    private void saveMaxEyesPhoto() {
+        ArrayList<GroupPhoto> photoList = mOpenCvCameraView.photoList;
+        Collections.sort(photoList, new Comparator<GroupPhoto>() {
+            @Override
+            public int compare(GroupPhoto photo1, GroupPhoto photo2) {
+                return ( photo1.getEyesNum() > photo2.getEyesNum() ) ? -1 : ( photo1.getEyesNum() > photo2.getEyesNum() ) ? 1:0;
+            }
+        });
+
+        GroupPhoto maxEyePhoto = photoList.get(0);
+
+        try {
+            FileOutputStream fos = new FileOutputStream(maxEyePhoto.getFileName());
+            fos.write(maxEyePhoto.getData());
+            fos.close();
+
+            startCompositeMode();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void startCompositeMode() {
+        Intent intent = new Intent(Intent.ACTION_PICK);
+        intent.setType(android.provider.MediaStore.Images.Media.CONTENT_TYPE);
+        intent.setData(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        startActivityForResult(intent, REQ_CODE_SELECT_IMAGE);
     }
 
     @Override
@@ -154,74 +254,48 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     }
 
     @Override
-    public void onCameraViewStarted(int i, int i1) {
-        mGray = new Mat();
+    public void onCameraViewStarted(int height, int width) {
         mRgba = new Mat();
+        mGrayscaleImage = new Mat(height, width, CvType.CV_8UC4);
+
     }
 
     @Override
     public void onCameraViewStopped() {
-        mGray.release();
         mRgba.release();
     }
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame cvCameraViewFrame) {
+        faceNumber = 0;
+        Mat inputMat = cvCameraViewFrame.rgba();
+        Imgproc.cvtColor(inputMat, mGrayscaleImage, Imgproc.COLOR_RGBA2RGB);
 
-        mRgba = cvCameraViewFrame.rgba();
-        mGray = cvCameraViewFrame.gray();
 
         if (mAbsoluteFaceSize == 0) {
-            int height = mGray.rows();
+            int height = mGrayscaleImage.rows();
             if (Math.round(height * mRelativeFaceSize) > 0) {
                 mAbsoluteFaceSize = Math.round(height * mRelativeFaceSize);
-                mAbsoluteEyeSize = Math.round(height * mRelativeEyeSize);
             }
 
         }
 
         MatOfRect faceRect = new MatOfRect();
-        MatOfRect eyeRect = new MatOfRect();
 
-        if (mDetectorType == JAVA_DETECTOR) {
-            if (mJavaDetector != null) {
-                mJavaDetector.detectMultiScale(mGray, faceRect, 1.1, 2, 2, // TODO: objdetect.CV_HAAR_SCALE_IMAGE
-                        new Size(mAbsoluteFaceSize, mAbsoluteFaceSize), new Size());
+        if (mJavaDetector != null)
+            mJavaDetector.detectMultiScale(mGrayscaleImage, faceRect, 1.1, 2, 2, new Size(mAbsoluteFaceSize, mAbsoluteFaceSize),new Size());
 
+        Rect[] facesArray = faceRect.toArray();
+        faceNumber = facesArray.length;
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                faceNumberTv.setText("Faces : " + faceNumber);
+                if ( maxFaceNumber < faceNumber )
+                    maxFaceNumber = faceNumber;
             }
-            if ( mJavaEyeDetector != null) {
-                mJavaEyeDetector.detectMultiScale(mGray, eyeRect, 1.1, 2, 2, // TODO: objdetect.CV_HAAR_SCALE_IMAGE
-                        new Size(mAbsoluteEyeSize, mAbsoluteEyeSize), new Size());
-            }
-        }
-        else {
-            Log.e(TAG, "Detection method is not selected!");
-        }
-
-        final Rect[] facesArray = faceRect.toArray();
-        final Rect[] eyesArray = eyeRect.toArray();
-        for (int i = 0; i < eyesArray.length; i++) {
-            Imgproc.rectangle(mRgba, eyesArray[i].tl(), eyesArray[i].br(), FACE_RECT_COLOR, 3);
-            Log.d(TAG, "eye array " + String.valueOf(i));
-        }
-        //TODO
-        if(facesArray.length > 0) {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    int faceNum = facesArray.length;
-                    int eyeNum = eyesArray.length;
-                    faceNumberTv.setText("Faces : " + faceNum);
-                    if ( maxFaceNumber < faceNum )
-                        maxFaceNumber = faceNum;
-                    eyeNumberTv.setText("Eyes : " + eyeNum);
-                    if ( maxEyeNumber < eyeNum )
-                        maxEyeNumber = eyeNum;
-                }
-            });
-
-        }
-
+        });
         return mRgba;
     }
 
@@ -248,7 +322,6 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         t.start();
     }
 
-
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
@@ -262,9 +335,9 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
                     try {
                         // load cascade file from application resources
-                        InputStream is = getResources().openRawResource(R.raw.lbpcascade_frontalface);
+                        InputStream is = getResources().openRawResource(R.raw.haarcascade_frontalface_alt);
                         File cascadeDir = getDir("cascade", Context.MODE_PRIVATE);
-                        String xmlDataFileName = "lbpcascade_frontalface.xml";
+                        String xmlDataFileName = "haarcascade_frontalface_alt.xml";
                         mCascadeFile = new File(cascadeDir, xmlDataFileName);
                         FileOutputStream os = new FileOutputStream(mCascadeFile);
 
@@ -286,34 +359,12 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
                         cascadeDir.delete();
 
-                        InputStream is2 = getResources().openRawResource(R.raw.haarcascade_eye);
-                        File haarcascadeDir = getDir("haarcascade", Context.MODE_PRIVATE);
-                        String xmlDFName = "haarcascade_eye.xml";
-                        mHaarCascadeEyeFile = new File(haarcascadeDir, xmlDFName);
-                        FileOutputStream os2 = new FileOutputStream(mHaarCascadeEyeFile);
-                        byte[] buffer2 = new byte[4096];
-                        int bytesRead2;
-                        while((bytesRead2 = is2.read(buffer)) != -1) {
-                            os2.write(buffer, 0, bytesRead2);
-                        }
-                        is2.close();
-                        os2.close();
-                        mJavaEyeDetector = new CascadeClassifier(mHaarCascadeEyeFile.getAbsolutePath());
-                        if(mJavaEyeDetector.empty()) {
-                            Log.e(TAG, "Failed to load cascade classifier");
-                            mJavaEyeDetector = null;
-                        } else {
-                            Log.i(TAG, "Loaded cascade classifier from " + mHaarCascadeEyeFile.getAbsolutePath());
-                        }
-
-
                     } catch (IOException e) {
                         e.printStackTrace();
                         Log.e(TAG, "Failed to load cascade. Exception thrown: " + e);
                     }
 
                     mOpenCvCameraView.enableView();
-//                    mOpenCvCameraView.setOnTouchListener(CameraActivity.this);
                 } break;
                 default:
                 {
@@ -323,5 +374,38 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         }
     };
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+
+        Toast.makeText(getBaseContext(), "resultCode : "+resultCode,Toast.LENGTH_SHORT).show();
+
+        if(requestCode == REQ_CODE_SELECT_IMAGE)
+        {
+            if(resultCode==Activity.RESULT_OK)
+            {
+                try {
+                    originalImage = MediaStore.Images.Media.getBitmap(getContentResolver(), data.getData());
+                    cropView.setOriginalImage(originalImage);
+
+                } catch (Exception e)
+                {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    private int captureNumByFormula(int faceNum) {
+
+        //초당 눈을 깜빡이는 횟수
+        float x;
+        //카메라의 셔터 스피드와 평균 눈깜빡이는 시간의 합
+        float t;
+
+//        return 1/(1-x*t)*faceNum;
+
+        return 5;
+
+    }
 
 }

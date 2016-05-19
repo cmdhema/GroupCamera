@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <kaist.groupphoto.MyOpenCVView
+        <kr.kaist.groupphoto.MyOpenCVView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:id="@+id/fd_activity_surface_view" />
@@ -26,6 +26,12 @@
             android:id="@+id/tv_eye_number"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
+
+        <kr.kaist.groupphoto.composite.CropView
+            android:id="@+id/cropview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
 
     </RelativeLayout>
 
