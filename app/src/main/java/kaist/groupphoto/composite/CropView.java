@@ -168,14 +168,6 @@ public class CropView extends View implements View.OnTouchListener {
 
     }
 
-    public void fillinPartofPath() {
-        Point point = new Point();
-        point.x = points.get(0).x;
-        point.y = points.get(0).y;
-
-        points.add(point);
-        invalidate();
-    }
 
     public void resetView() {
         points.clear();

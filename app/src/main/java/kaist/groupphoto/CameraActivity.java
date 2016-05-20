@@ -61,7 +61,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
     final int REQ_CODE_SELECT_IMAGE=100;
 
-    private Mat mRgba;
+//    private Mat mRgba;
     private File                   mCascadeFile;
     private CascadeClassifier mJavaDetector;
 
@@ -131,6 +131,17 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
     }
 
+    private void cropImage(List<Point> points) {
+
+    }
+
+    private void overLayCroppedImage(Paint paint) {
+
+    }
+
+    private void compositeImage(Bitmap croppedImage, Bitmap newImage) {
+
+    }
 
 
     @Override
@@ -255,14 +266,14 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
     @Override
     public void onCameraViewStarted(int height, int width) {
-        mRgba = new Mat();
+//        mRgba = new Mat();
         mGrayscaleImage = new Mat(height, width, CvType.CV_8UC4);
 
     }
 
     @Override
     public void onCameraViewStopped() {
-        mRgba.release();
+//        mRgba.release();
     }
 
     @Override
@@ -296,7 +307,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
                     maxFaceNumber = faceNumber;
             }
         });
-        return mRgba;
+        return inputMat;
     }
 
     private void takePicture() {

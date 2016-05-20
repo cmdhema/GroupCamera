@@ -5,9 +5,6 @@ package kaist.groupphoto.composite;
  */
 public class Point {
 
-    public float dy;
-
-    public float dx;
     public float x, y;
 
     @Override
