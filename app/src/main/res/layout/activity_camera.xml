@@ -6,11 +6,12 @@
 
 
     <RelativeLayout
+        android:id="@+id/view_container"
         android:layout_weight="1"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <kr.kaist.groupphoto.MyOpenCVView
+        <kaist.groupphoto.MyOpenCVView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:id="@+id/fd_activity_surface_view" />
@@ -27,11 +28,23 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
 
-        <kr.kaist.groupphoto.composite.CropView
+        <kaist.groupphoto.composite.CropView
             android:id="@+id/cropview"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/iv_camera"
+            android:layout_width="match_parent"
+            android:visibility="gone"
+            android:layout_height="match_parent" />
+
+        <ImageView
+            android:layout_width="match_parent"
+            android:alpha="0.5"
+            android:id="@+id/iv_overlay"
+            android:layout_height="match_parent" />
 
     </RelativeLayout>
 

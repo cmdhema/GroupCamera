@@ -3,6 +3,7 @@ package kaist.groupphoto;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.hardware.Camera;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -14,7 +15,10 @@ import com.google.android.gms.vision.face.FaceDetector;
 
 import org.opencv.android.JavaCameraView;
 
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,8 +38,11 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 
     private int eyesNum;
     private Bitmap mBitmap;
+    private Bitmap croppedBitmap;
+
     private SafeFaceDetector safeFaceDetector;
 
+    private int captureMode;
 
     public MyOpenCVView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -76,13 +83,14 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
         return mCamera.getParameters().getPreviewSize();
     }
 
-    public void takePicture(final String fileName) {
+    public void takePicture(final String fileName, int mode, Bitmap croppedBitmap) {
         Log.i(TAG, "Taking picture");
         this.mPictureFileName = fileName;
         // Postview and jpeg are sent in the same buffers if the queue is not empty when performing a capture.
         // Clear up buffers to avoid mCamera.takePicture to be stuck because of a memory issue
         mCamera.setPreviewCallback(null);
-
+        captureMode = mode;
+        this.croppedBitmap = croppedBitmap;
         // PictureCallback is implemented by the current class
         mCamera.takePicture(null, null, this);
     }
@@ -93,46 +101,70 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
         // The camera preview was automatically stopped. Start it again.
         mCamera.startPreview();
         mCamera.setPreviewCallback(this);
-
-        FaceDetector detector = new FaceDetector.Builder(context)
-                .setTrackingEnabled(false)
-                .build();
-        safeFaceDetector = new SafeFaceDetector(detector);
         mBitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
-        Frame frame = new Frame.Builder().setBitmap(mBitmap).build();
-        SparseArray<Face> faces = safeFaceDetector.detect(frame);
-        safeFaceDetector.release();
-        mBitmap.recycle();
-        Log.i("MainActivity", "Face num : " + faces.size());
-        if (faces.size() > 0) {
 
-            for (int i = 0; i < faces.size(); i++) {
-                Face face = faces.valueAt(i);
+        if ( captureMode != 2 ) {
+            FaceDetector detector = new FaceDetector.Builder(context)
+                    .setTrackingEnabled(false)
+                    .build();
+            safeFaceDetector = new SafeFaceDetector(detector);
+            Frame frame = new Frame.Builder().setBitmap(mBitmap).build();
+            SparseArray<Face> faces = safeFaceDetector.detect(frame);
+            safeFaceDetector.release();
+            mBitmap.recycle();
+            Log.i("MainActivity", "Face num : " + faces.size());
+            if (faces.size() > 0) {
 
-                if ( face.getIsLeftEyeOpenProbability() >= 0.5 )
-                    eyesNum++;
-                if ( face.getIsRightEyeOpenProbability() >= 0.5 )
-                    eyesNum++;
+                for (int i = 0; i < faces.size(); i++) {
+                    Face face = faces.valueAt(i);
+
+                    if (face.getIsLeftEyeOpenProbability() >= 0.5)
+                        eyesNum++;
+                    if (face.getIsRightEyeOpenProbability() >= 0.5)
+                        eyesNum++;
+                }
+            }
+
+            GroupPhoto photo = new GroupPhoto();
+            photo.setData(data);
+            photo.setEyesNum(eyesNum);
+            photo.setFileName(mPictureFileName+".jpb");
+
+            photoList.add(photo);
+        } else {
+            Log.i(TAG, "Tak!!!!");
+            // Write the image in a file (in jpeg format)
+            try {
+                FileOutputStream fos = new FileOutputStream(mPictureFileName+".jpg");
+
+                fos.write(data);
+                fos.close();
+
+                compositeImage();
+            } catch (java.io.IOException e) {
+                Log.e("PictureDemo", "Exception in photoCallback", e);
             }
         }
+    }
 
-        GroupPhoto photo = new GroupPhoto();
-        photo.setData(data);
-        photo.setEyesNum(eyesNum);
-        photo.setFileName(mPictureFileName);
 
-        photoList.add(photo);
+    public void compositeImage( ) {
+        Bitmap newBitmap = mBitmap.copy(Bitmap.Config.ARGB_8888, true);
+        Canvas newCanvas = new Canvas(newBitmap);
+        newCanvas.drawBitmap(croppedBitmap, 0, 0, null);
 
-        // Write the image in a file (in jpeg format)
         try {
-            FileOutputStream fos = new FileOutputStream(mPictureFileName);
-
-            fos.write(data);
-            fos.close();
-
-        } catch (java.io.IOException e) {
-            Log.e("PictureDemo", "Exception in photoCallback", e);
+            OutputStream os;
+            os = new FileOutputStream(mPictureFileName+"_"+".jpg");
+            newBitmap.compress(Bitmap.CompressFormat.PNG, 50, os);
+            os.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
     }
+
+
 }

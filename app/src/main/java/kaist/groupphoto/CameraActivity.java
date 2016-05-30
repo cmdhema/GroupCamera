@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -20,6 +21,8 @@ import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.RelativeLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -41,6 +44,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -60,11 +64,15 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 //    public static final int        JAVA_DETECTOR       = 0;
 
     final int REQ_CODE_SELECT_IMAGE=100;
+    private static final int MODE_FULL = 0;
+    private static final int MODE_GROUP = 1;
+    private static final int MODE_COMPOSITE = 2;
 
 //    private Mat mRgba;
     private File                   mCascadeFile;
     private CascadeClassifier mJavaDetector;
 
+    private RelativeLayout liveViewLayout;
 
     private float mRelativeFaceSize = 0.3f;
     private int mAbsoluteFaceSize = 0;
@@ -72,6 +80,8 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     private MyOpenCVView mOpenCvCameraView;
 
     private Bitmap originalImage;
+    private Bitmap croppedImage;
+    private Bitmap newCropImage;
 
     private Spinner modeSpinner;
     private Button captureBtn;
@@ -81,68 +91,68 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     private int faceNumber;
     private int maxFaceNumber;
 
-    //0 : Full mode, 1 : Group Shooting mode, 2 : Composite mode
     private int captureMode = 0;
 
     private Mat mGrayscaleImage;
 
     private CropView cropView;
+    private ImageView overlayView;
 
+    private ImageView cameraIv;
+
+    private List<Point> points;
 
     CompositeListener compositeListener = new CompositeListener() {
         @Override
         public void cropDone(List<Point> points) {
-            int widthOfscreen = 0;
-            int heightOfScreen = 0;
-
-            DisplayMetrics dm = new DisplayMetrics();
-            try {
-                getWindowManager().getDefaultDisplay().getMetrics(dm);
-            } catch (Exception ex) {
-            }
-            widthOfscreen = dm.widthPixels;
-            heightOfScreen = dm.heightPixels;
-
-            Bitmap croppedImage = Bitmap.createBitmap(widthOfscreen, heightOfScreen, originalImage.getConfig());
-
-            Canvas canvas = new Canvas(croppedImage);
-            Paint paint = new Paint();
-            paint.setAntiAlias(true);
-            Path path = new Path();
-            for (int i = 0; i < points.size(); i++) {
-                path.lineTo(points.get(i).x, points.get(i).y);
-            }
-            canvas.drawPath(path, paint);
-            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
-            canvas.drawBitmap(originalImage, 0, 0, paint);
-//            compositeImageView.setImageBitmap(croppedImage);
+            overLayCroppedImage(points);
         }
     };
 
     private void setFullMode() {
-
+        captureMode = MODE_FULL;
     }
 
     private void setGroupShootingMode() {
-
+        captureMode = MODE_GROUP;
     }
 
     private void setCompositeMode() {
-
+        captureMode = MODE_COMPOSITE;
+        startCompositeMode();
     }
 
-    private void cropImage(List<Point> points) {
+    private void overLayCroppedImage(List<Point> points) {
+
+        this.points = points;
+
+        int widthOfscreen = 0;
+        int heightOfScreen = 0;
+
+        DisplayMetrics dm = new DisplayMetrics();
+        try {
+            getWindowManager().getDefaultDisplay().getMetrics(dm);
+        } catch (Exception ex) {
+        }
+        widthOfscreen = dm.widthPixels;
+        heightOfScreen = dm.heightPixels;
+
+        croppedImage = Bitmap.createBitmap(widthOfscreen, heightOfScreen, originalImage.getConfig());
+
+        Canvas canvas = new Canvas(croppedImage);
+        Paint paint = new Paint();
+        paint.setAntiAlias(true);
+        Path path = new Path();
+        for (int i = 0; i < points.size(); i++) {
+            path.lineTo(points.get(i).x, points.get(i).y);
+        }
+        canvas.drawPath(path, paint);
+        paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
+        canvas.drawBitmap(originalImage, 0, 0, paint);
+        overlayView.setImageBitmap(croppedImage);
+        cropView.setVisibility(View.GONE);
 
     }
-
-    private void overLayCroppedImage(Paint paint) {
-
-    }
-
-    private void compositeImage(Bitmap croppedImage, Bitmap newImage) {
-
-    }
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -152,8 +162,13 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         Log.i(TAG, "called onCreate");
         Camera.Size resolution = null;
 
+        overlayView = (ImageView) findViewById(R.id.iv_overlay);
+
         cropView = (CropView) findViewById(R.id.cropview);
         cropView.setOnCompositeListener(compositeListener);
+
+        liveViewLayout = (RelativeLayout) findViewById(R.id.view_container);
+        cameraIv = (ImageView) findViewById(R.id.iv_camera);
 
         ArrayList spinnerItem = new ArrayList<String>();
         spinnerItem.add("Full");
@@ -165,14 +180,13 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         modeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                captureMode = i;
 
-                if ( captureMode == 0 ) {
-//                    detectFa
-                } else if (captureMode == 1 ) {
-
-                } else if ( captureMode == 2 ) {
-
+                if ( i == 0 ) {
+                    setFullMode();
+                } else if (i == 1 ) {
+                    setGroupShootingMode();
+                } else if ( i == 2 ) {
+                    setCompositeMode();
                 }
             }
 
@@ -189,14 +203,16 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             @Override
             public void onClick(View view) {
 
-                int captureNumber = 0;
-
-                while ( captureNumber < captureNumByFormula(faceNumber) ) {
+                if ( captureMode != MODE_COMPOSITE ) {
+                    int captureNumber = 0;
+                    while ( captureNumber < captureNumByFormula(faceNumber) ) {
+                        takePicture();
+                        captureNumber++;
+                    }
+                    saveMaxEyesPhoto();
+                } else
                     takePicture();
-                    captureNumber++;
-                }
 
-                saveMaxEyesPhoto();
             }
         });
 
@@ -321,16 +337,13 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
                 if(!dirCheck.exists()) {
                     dirCheck.mkdirs();
                 }
-                String fileName = saveDir + "/" + currentDateandTime + ".jpg";
-                try {
-                    mOpenCvCameraView.takePicture(fileName);
-                    Toast.makeText(getApplicationContext(), fileName + " saved", Toast.LENGTH_SHORT).show();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
+                String fileName = saveDir + "/" + currentDateandTime;
+                mOpenCvCameraView.takePicture(fileName, captureMode, croppedImage);
+//                Toast.makeText(getApplicationContext(), fileName + " saved", Toast.LENGTH_SHORT).show();
             }
         });
         t.start();
+
     }
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
@@ -396,6 +409,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             {
                 try {
                     originalImage = MediaStore.Images.Media.getBitmap(getContentResolver(), data.getData());
+                    cropView.setVisibility(View.VISIBLE);
                     cropView.setOriginalImage(originalImage);
 
                 } catch (Exception e)
