@@ -3,6 +3,7 @@ package kaist.groupphoto;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -11,11 +12,13 @@ import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.hardware.Camera;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
@@ -26,6 +29,10 @@ import android.widget.RelativeLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.google.android.gms.vision.Frame;
+import com.google.android.gms.vision.face.Face;
+import com.google.android.gms.vision.face.FaceDetector;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
@@ -59,34 +66,28 @@ import kaist.groupphoto.composite.Point;
 //AppCompatActivity
 public class CameraActivity extends Activity  implements CameraBridgeViewBase.CvCameraViewListener2 {
 
-    private static final String    TAG                 = "AutoCam::MainActivity";
+    private static final String    TAG                 = "GroupPhoto::MainActivi";
 //    private static final Scalar FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
 //    public static final int        JAVA_DETECTOR       = 0;
 
     final int REQ_CODE_SELECT_IMAGE=100;
-    private static final int MODE_FULL = 0;
-    private static final int MODE_GROUP = 1;
-    private static final int MODE_COMPOSITE = 2;
 
-//    private Mat mRgba;
     private File                   mCascadeFile;
     private CascadeClassifier mJavaDetector;
 
     private RelativeLayout liveViewLayout;
 
-    private float mRelativeFaceSize = 0.3f;
+    private float mRelativeFaceSize = 0.2f;
     private int mAbsoluteFaceSize = 0;
 
     private MyOpenCVView mOpenCvCameraView;
 
     private Bitmap originalImage;
     private Bitmap croppedImage;
-    private Bitmap newCropImage;
 
     private Spinner modeSpinner;
     private Button captureBtn;
     private TextView faceNumberTv;
-    private TextView eyeNumberTv;
 
     private int faceNumber;
     private int maxFaceNumber;
@@ -98,9 +99,8 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     private CropView cropView;
     private ImageView overlayView;
 
-    private ImageView cameraIv;
-
-    private List<Point> points;
+    private SafeFaceDetector safeFaceDetector;
+    private FaceDetector detector;
 
     CompositeListener compositeListener = new CompositeListener() {
         @Override
@@ -110,21 +110,19 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     };
 
     private void setFullMode() {
-        captureMode = MODE_FULL;
+        captureMode = Constant.MODE_FULL;
     }
 
     private void setGroupShootingMode() {
-        captureMode = MODE_GROUP;
+        captureMode = Constant.MODE_GROUP;
     }
 
     private void setCompositeMode() {
-        captureMode = MODE_COMPOSITE;
+        captureMode = Constant.MODE_COMPOSITE;
         startCompositeMode();
     }
 
     private void overLayCroppedImage(List<Point> points) {
-
-        this.points = points;
 
         int widthOfscreen = 0;
         int heightOfScreen = 0;
@@ -161,14 +159,16 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         setContentView(R.layout.activity_camera);
         Log.i(TAG, "called onCreate");
         Camera.Size resolution = null;
-
+        detector = new FaceDetector.Builder(getApplicationContext())
+                .setTrackingEnabled(false)
+                .build();
+        safeFaceDetector = new SafeFaceDetector(detector);
         overlayView = (ImageView) findViewById(R.id.iv_overlay);
 
         cropView = (CropView) findViewById(R.id.cropview);
         cropView.setOnCompositeListener(compositeListener);
 
         liveViewLayout = (RelativeLayout) findViewById(R.id.view_container);
-        cameraIv = (ImageView) findViewById(R.id.iv_camera);
 
         ArrayList spinnerItem = new ArrayList<String>();
         spinnerItem.add("Full");
@@ -196,20 +196,15 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             }
         });
 
-        eyeNumberTv = (TextView) findViewById(R.id.tv_eye_number);
         faceNumberTv = (TextView) findViewById(R.id.tv_face_number);
         captureBtn = (Button) findViewById(R.id.btn_capture);
         captureBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
 
-                if ( captureMode != MODE_COMPOSITE ) {
-                    int captureNumber = 0;
-                    while ( captureNumber < captureNumByFormula(faceNumber) ) {
+                if ( captureMode != Constant.MODE_COMPOSITE ) {
                         takePicture();
-                        captureNumber++;
-                    }
-                    saveMaxEyesPhoto();
+//                    saveMaxEyesPhoto();
                 } else
                     takePicture();
 
@@ -223,10 +218,11 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         mOpenCvCameraView.setCvCameraViewListener(this);
         mOpenCvCameraView.setCameraIndex( CameraBridgeViewBase.CAMERA_ID_BACK);
         mOpenCvCameraView.enableFpsMeter();
+
+        mOpenCvCameraView.setOnMaxEyesPhotoListener(maxEyesPhotoTakenListener);
     }
 
-    private void saveMaxEyesPhoto() {
-        ArrayList<GroupPhoto> photoList = mOpenCvCameraView.photoList;
+    private void saveMaxEyesPhoto(List<GroupPhoto> photoList) {
         Collections.sort(photoList, new Comparator<GroupPhoto>() {
             @Override
             public int compare(GroupPhoto photo1, GroupPhoto photo2) {
@@ -241,7 +237,8 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             fos.write(maxEyePhoto.getData());
             fos.close();
 
-            startCompositeMode();
+            if ( captureMode == Constant.MODE_FULL )
+                startCompositeMode();
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -282,21 +279,33 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
     @Override
     public void onCameraViewStarted(int height, int width) {
-//        mRgba = new Mat();
         mGrayscaleImage = new Mat(height, width, CvType.CV_8UC4);
 
     }
 
     @Override
     public void onCameraViewStopped() {
-//        mRgba.release();
     }
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame cvCameraViewFrame) {
-        faceNumber = 0;
+
         Mat inputMat = cvCameraViewFrame.rgba();
-        Imgproc.cvtColor(inputMat, mGrayscaleImage, Imgproc.COLOR_RGBA2RGB);
+
+        if ( captureMode == Constant.MODE_FULL ) {
+            detectHidden(inputMat);
+        } else if ( captureMode == Constant.MODE_GROUP ) {
+            detectFace(inputMat);
+        }
+
+
+        return inputMat;
+    }
+
+    private void detectFace(Mat mat) {
+        faceNumber = 0;
+
+        Imgproc.cvtColor(mat, mGrayscaleImage, Imgproc.COLOR_RGBA2RGB);
 
 
         if (mAbsoluteFaceSize == 0) {
@@ -323,7 +332,10 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
                     maxFaceNumber = faceNumber;
             }
         });
-        return inputMat;
+    }
+
+    private void detectHidden(Mat mat) {
+
     }
 
     private void takePicture() {
@@ -332,7 +344,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             public void run() {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss_S");
                 String currentDateandTime = sdf.format(new Date());
-                String saveDir = Environment.getExternalStorageDirectory().getPath() + "/DCIM/GroupPhoto/";
+                String saveDir = Constant.PHOTO_DIR;
                 File dirCheck = new File(saveDir);
                 if(!dirCheck.exists()) {
                     dirCheck.mkdirs();
@@ -408,6 +420,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             if(resultCode==Activity.RESULT_OK)
             {
                 try {
+
                     originalImage = MediaStore.Images.Media.getBitmap(getContentResolver(), data.getData());
                     cropView.setVisibility(View.VISIBLE);
                     cropView.setOriginalImage(originalImage);
@@ -419,6 +432,42 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             }
         }
     }
+
+    private MaxEyesPhotoTakenListener maxEyesPhotoTakenListener = new MaxEyesPhotoTakenListener() {
+        @Override
+        public void takesPhotoDone(List<GroupPhoto> photos) {
+            int eyesNum = 0;
+            Log.i(TAG, "Photo list size : " + photos.size());
+            for ( GroupPhoto photo : photos) {
+                Bitmap mBitmap = BitmapFactory.decodeByteArray(photo.getData(), 0, photo.getData().length);
+
+                Frame frame = new Frame.Builder().setBitmap(mBitmap).build();
+                detector = new FaceDetector.Builder(getApplicationContext())
+                        .setTrackingEnabled(false)
+                        .build();
+                SafeFaceDetector safeFaceDetector = new SafeFaceDetector(detector);
+                SparseArray<Face> faces = safeFaceDetector.detect(frame);
+                safeFaceDetector.release();
+                mBitmap.recycle();
+                Log.i(TAG, "Face num : " + faces.size());
+                if (faces.size() > 0) {
+
+                    for (int i = 0; i < faces.size(); i++) {
+                        Face face = faces.valueAt(i);
+
+                        if (face.getIsLeftEyeOpenProbability() >= 0.5)
+                            eyesNum++;
+                        if (face.getIsRightEyeOpenProbability() >= 0.5)
+                            eyesNum++;
+                    }
+                } else
+                    eyesNum = 0;
+
+                photo.setEyesNum(eyesNum);
+            }
+            saveMaxEyesPhoto(photos);
+        }
+    };
 
     private int captureNumByFormula(int faceNum) {
 
@@ -432,5 +481,6 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         return 5;
 
     }
+
 
 }

@@ -40,14 +40,19 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
     private Bitmap mBitmap;
     private Bitmap croppedBitmap;
 
-    private SafeFaceDetector safeFaceDetector;
-
     private int captureMode;
+
+    private boolean isPreviewRunning = false;
+
+    private MaxEyesPhotoTakenListener maxEyesPhotoTakenListener;
+
+    int photoCounter = 5;
 
     public MyOpenCVView(Context context, AttributeSet attrs) {
         super(context, attrs);
         this.context = context;
         photoList = new ArrayList();
+
     }
 
     public List<String> getEffectList() {
@@ -92,47 +97,40 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
         captureMode = mode;
         this.croppedBitmap = croppedBitmap;
         // PictureCallback is implemented by the current class
-        mCamera.takePicture(null, null, this);
+
+        if ( !isPreviewRunning ) {
+            mCamera.takePicture(null, null, this);
+            isPreviewRunning = false;
+        } else
+            return;
     }
 
     @Override
     public void onPictureTaken(byte[] data, Camera camera) {
         Log.i(TAG, "Saving a bitmap to file");
         // The camera preview was automatically stopped. Start it again.
-        mCamera.startPreview();
         mCamera.setPreviewCallback(this);
-        mBitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+//        mCamera.stopPreview();
+        mCamera.startPreview();
 
-        if ( captureMode != 2 ) {
-            FaceDetector detector = new FaceDetector.Builder(context)
-                    .setTrackingEnabled(false)
-                    .build();
-            safeFaceDetector = new SafeFaceDetector(detector);
-            Frame frame = new Frame.Builder().setBitmap(mBitmap).build();
-            SparseArray<Face> faces = safeFaceDetector.detect(frame);
-            safeFaceDetector.release();
-            mBitmap.recycle();
-            Log.i("MainActivity", "Face num : " + faces.size());
-            if (faces.size() > 0) {
-
-                for (int i = 0; i < faces.size(); i++) {
-                    Face face = faces.valueAt(i);
-
-                    if (face.getIsLeftEyeOpenProbability() >= 0.5)
-                        eyesNum++;
-                    if (face.getIsRightEyeOpenProbability() >= 0.5)
-                        eyesNum++;
-                }
-            }
+        if ( captureMode != Constant.MODE_COMPOSITE ) {
 
             GroupPhoto photo = new GroupPhoto();
             photo.setData(data);
-            photo.setEyesNum(eyesNum);
-            photo.setFileName(mPictureFileName+".jpb");
-
+            photo.setFileName(mPictureFileName+".jpg");
             photoList.add(photo);
+
+            if ( photoList.size() == 5 ) {
+//                mCamera.startPreview();
+                maxEyesPhotoTakenListener.takesPhotoDone(photoList);
+            }
+
+            if ( --photoCounter >= 0 )
+                mCamera.takePicture(null, null, this);
+            else
+                photoCounter = 5;
         } else {
-            Log.i(TAG, "Tak!!!!");
+            mBitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
             // Write the image in a file (in jpeg format)
             try {
                 FileOutputStream fos = new FileOutputStream(mPictureFileName+".jpg");
@@ -142,7 +140,7 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 
                 compositeImage();
             } catch (java.io.IOException e) {
-                Log.e("PictureDemo", "Exception in photoCallback", e);
+                Log.e(TAG, "Exception in photoCallback", e);
             }
         }
     }
@@ -166,5 +164,8 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 
     }
 
+    public void setOnMaxEyesPhotoListener(MaxEyesPhotoTakenListener listener ) {
+        this.maxEyesPhotoTakenListener = listener;
+    }
 
 }
