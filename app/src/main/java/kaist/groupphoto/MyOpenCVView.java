@@ -34,9 +34,6 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 
     protected ArrayList photoList;
 
-    private Context context;
-
-    private int eyesNum;
     private Bitmap mBitmap;
     private Bitmap croppedBitmap;
 
@@ -50,7 +47,6 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 
     public MyOpenCVView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        this.context = context;
         photoList = new ArrayList();
 
     }

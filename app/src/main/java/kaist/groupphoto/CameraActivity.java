@@ -3,7 +3,6 @@ package kaist.groupphoto;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -12,9 +11,7 @@ import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.hardware.Camera;
-import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -42,6 +39,7 @@ import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Rect;
+import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
@@ -51,7 +49,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -67,7 +64,7 @@ import kaist.groupphoto.composite.Point;
 public class CameraActivity extends Activity  implements CameraBridgeViewBase.CvCameraViewListener2 {
 
     private static final String    TAG                 = "GroupPhoto::MainActivi";
-//    private static final Scalar FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
+    private static final Scalar FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
 //    public static final int        JAVA_DETECTOR       = 0;
 
     final int REQ_CODE_SELECT_IMAGE=100;
@@ -77,7 +74,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
     private RelativeLayout liveViewLayout;
 
-    private float mRelativeFaceSize = 0.2f;
+    private float mRelativeFaceSize = 0.3f;
     private int mAbsoluteFaceSize = 0;
 
     private MyOpenCVView mOpenCvCameraView;
@@ -157,7 +154,6 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_camera);
-        Log.i(TAG, "called onCreate");
         Camera.Size resolution = null;
         detector = new FaceDetector.Builder(getApplicationContext())
                 .setTrackingEnabled(false)
@@ -322,6 +318,9 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             mJavaDetector.detectMultiScale(mGrayscaleImage, faceRect, 1.1, 2, 2, new Size(mAbsoluteFaceSize, mAbsoluteFaceSize),new Size());
 
         Rect[] facesArray = faceRect.toArray();
+
+        for ( int i = 0; i < facesArray.length; i++)
+            Imgproc.rectangle(mat, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
         faceNumber = facesArray.length;
 
         runOnUiThread(new Runnable() {
@@ -371,9 +370,11 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
                     try {
                         // load cascade file from application resources
-                        InputStream is = getResources().openRawResource(R.raw.haarcascade_frontalface_alt);
+                        InputStream is = getResources().openRawResource(R.raw.cascade_hidden);
+//                        InputStream is = getResources().openRawResource(R.raw.haarcascade_frontalface_alt);
                         File cascadeDir = getDir("cascade", Context.MODE_PRIVATE);
-                        String xmlDataFileName = "haarcascade_frontalface_alt.xml";
+//                        String xmlDataFileName = "haarcascade_frontalface_alt.xml";
+                        String xmlDataFileName = "cascade_hidden.xml";
                         mCascadeFile = new File(cascadeDir, xmlDataFileName);
                         FileOutputStream os = new FileOutputStream(mCascadeFile);
 
@@ -385,7 +386,6 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
                         is.close();
                         os.close();
 
-                        // eyes detect
                         mJavaDetector = new CascadeClassifier(mCascadeFile.getAbsolutePath());
                         if (mJavaDetector.empty()) {
                             Log.e(TAG, "Failed to load cascade classifier");
