@@ -3,7 +3,6 @@ package kaist.groupphoto;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.hardware.Camera;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -14,7 +13,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -37,48 +35,59 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 
     private PhotoTakenListener photoTakenListener;
 
-    int photoCounter = 5;
+    private int photoCounter = 5;
+    private int photoNum = 5;
+
     private boolean isMaxEyeDetectDone;
 
     public MyOpenCVView(Context context, AttributeSet attrs) {
         super(context, attrs);
         photoList = new ArrayList();
-
+//
     }
 
-    public List<String> getEffectList() {
-        return mCamera.getParameters().getSupportedColorEffects();
-    }
+//    public List<String> getEffectList() {
+//        return mCamera.getParameters().getSupportedColorEffects();
+//    }
+//
+//    public boolean isEffectSupported() {
+//        return (mCamera.getParameters().getColorEffect() != null);
+//    }
+//
+//    public String getEffect() {
+//        return mCamera.getParameters().getColorEffect();
+//    }
+//
+//    public void setEffect(String effect) {
+//        Camera.Parameters params = mCamera.getParameters();
+//        params.setColorEffect(effect);
+//        mCamera.setParameters(params);
+//    }
+//
+//    public List<Camera.Size> getResolutionList() {
+//        return mCamera.getParameters().getSupportedPreviewSizes();
+//    }
+//
+//    public void setResolution(Camera.Size resolution) {
+//        disconnectCamera();
+//        mMaxHeight = resolution.height;
+//        mMaxWidth = resolution.width;
+//        connectCamera(getWidth(), getHeight());
+//    }
+//
+//    public Camera.Size getResolution() {
+//        return mCamera.getParameters().getPreviewSize();
+//    }
 
-    public boolean isEffectSupported() {
-        return (mCamera.getParameters().getColorEffect() != null);
-    }
+    public void takePicture() {
+        mCamera.setPreviewCallback(null);
 
-    public String getEffect() {
-        return mCamera.getParameters().getColorEffect();
+        if ( !isPreviewRunning ) {
+            mCamera.takePicture(null, null, this);
+            isPreviewRunning = false;
+        } else
+            return;
     }
-
-    public void setEffect(String effect) {
-        Camera.Parameters params = mCamera.getParameters();
-        params.setColorEffect(effect);
-        mCamera.setParameters(params);
-    }
-
-    public List<Camera.Size> getResolutionList() {
-        return mCamera.getParameters().getSupportedPreviewSizes();
-    }
-
-    public void setResolution(Camera.Size resolution) {
-        disconnectCamera();
-        mMaxHeight = resolution.height;
-        mMaxWidth = resolution.width;
-        connectCamera(getWidth(), getHeight());
-    }
-
-    public Camera.Size getResolution() {
-        return mCamera.getParameters().getPreviewSize();
-    }
-
     public void takePicture(int mode) {
         Log.i(TAG, "Taking picture");
 
@@ -94,17 +103,34 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
             return;
     }
 
+    public void takePicture(int mode, int pictureNum) {
+        photoCounter = pictureNum;
+        photoNum = pictureNum;
+        captureMode = mode;
+
+        mCamera.setPreviewCallback(null);
+        captureMode = mode;
+
+        if ( !isPreviewRunning ) {
+            mCamera.takePicture(null, null, this);
+            isPreviewRunning = false;
+        } else
+            return;
+    }
+
     @Override
     public void onPictureTaken(byte[] data, Camera camera) {
         Log.i(TAG, "onPictureTaken " + photoCounter +"times");
-        // The camera preview was automatically stopped. Start it again.
         mCamera.setPreviewCallback(this);
-//        mCamera.stopPreview();
         mCamera.startPreview();
-        if ( captureMode != Constant.MODE_COMPOSITE ) {
+
+        if ( captureMode == Constant.MODE_NONE)
+            photoTakenListener.autoFocus(data);
+
+        if ( captureMode == Constant.MODE_FULL || captureMode == Constant.MODE_COMPOSITE ) {
 
             if ( isMaxEyeDetectDone ) {
-                photoCounter = 5;
+                photoCounter = photoNum;
                 photoList.clear();
                 savePhoto(data);
             } else {
@@ -113,7 +139,7 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
                 photo.setFilePath(getSaveFileName());
                 photoList.add(photo);
 
-                if ( photoList.size() == 5 ) {
+                if ( photoList.size() == photoNum ) {
                     isMaxEyeDetectDone = true;
                     photoTakenListener.detectMaxEye(photoList);
                 }
@@ -121,10 +147,10 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
                 if ( --photoCounter > 0 )
                     mCamera.takePicture(null, null, this);
                 else
-                    photoCounter = 5;
+                    photoCounter = photoNum;
             }
 
-        } else {
+        } else if ( captureMode == Constant.MODE_COMPOSITE ){
             savePhoto(data);
         }
     }
@@ -164,4 +190,5 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
         return saveDir + currentDateandTime;
 
     }
+
 }

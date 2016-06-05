@@ -51,6 +51,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import kaist.groupphoto.composite.CompositeSelectActivity;
 import kaist.groupphoto.listener.PhotoTakenListener;
@@ -74,7 +76,6 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     private TextView faceNumberTv;
 
     private int faceNumber;
-    private int maxFaceNumber;
 
     private int captureMode = 0;
 
@@ -91,6 +92,15 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     private Bitmap compositeNewImage;
 
     private ProgressDialog dialog;
+
+    private Timer faceDetectTimer;
+
+    private TimerTask faceDeetecterTimerTask = new TimerTask() {
+        @Override
+        public void run() {
+            takePicture();
+        }
+    };
 
     private void compositeImage(int direction, float xPoint) {
         Log.i(TAG, direction +", " + xPoint);
@@ -141,6 +151,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_camera);
         Camera.Size resolution = null;
+        faceDetectTimer = new Timer();
         detector = new FaceDetector.Builder(getApplicationContext())
                 .setTrackingEnabled(false)
                 .build();
@@ -196,7 +207,6 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         mOpenCvCameraView.setCvCameraViewListener(this);
         mOpenCvCameraView.setCameraIndex( CameraBridgeViewBase.CAMERA_ID_BACK);
         mOpenCvCameraView.enableFpsMeter();
-
         mOpenCvCameraView.setOnMaxEyesPhotoListener(photoTakenListener);
     }
 
@@ -250,10 +260,8 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
         if ( captureMode == Constant.MODE_FULL ) {
             detectHidden(inputMat);
         } else if ( captureMode == Constant.MODE_EYE_DETECTION) {
-            detectFace(inputMat);
+//            detectFace(inputMat);
         }
-
-
         return inputMat;
     }
 
@@ -280,25 +288,21 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
         for ( int i = 0; i < facesArray.length; i++)
             Imgproc.rectangle(mat, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
-        faceNumber = facesArray.length;
-
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                faceNumberTv.setText("Faces : " + faceNumber);
-                if ( maxFaceNumber < faceNumber )
-                    maxFaceNumber = faceNumber;
-            }
-        });
-    }
-
-    private void detectFace(Mat mat) {
 
     }
 
     private void takePicture() {
 
-        mOpenCvCameraView.takePicture(captureMode);
+        switch (captureMode) {
+            case Constant.MODE_EYE_DETECTION:
+            case Constant.MODE_FULL:
+                mOpenCvCameraView.takePicture(captureMode, getCaptureNumByFormula());
+                break;
+            case Constant.MODE_COMPOSITE:
+                mOpenCvCameraView.takePicture(captureMode);
+            case Constant.MODE_NONE:
+                mOpenCvCameraView.takePicture();
+        }
 
     }
 
@@ -346,11 +350,13 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
                     }
 
                     mOpenCvCameraView.enableView();
+
                 } break;
                 default:
                 {
                     super.onManagerConnected(status);
                 } break;
+
             }
         }
     };
@@ -364,9 +370,6 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             if(resultCode==Activity.RESULT_OK) {
                 try {
 
-//                    originalImage = MediaStore.Images.Media.getBitmap(getContentResolver(), data.getData());
-//                    lineView.setVisibility(View.VISIBLE);
-//                    lineView.setOriginalImage(originalImage);
                     Cursor c = getContentResolver().query(Uri.parse(data.getAction()), null,null,null,null);
                     c.moveToNext();
                     String path = c.getString(c.getColumnIndex(MediaStore.MediaColumns.DATA));
@@ -392,17 +395,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             int eyesNum = 0;
             Log.i(TAG, "Photo list size : " + photos.size());
             for ( GroupPhoto photo : photos) {
-                Bitmap mBitmap = BitmapFactory.decodeByteArray(photo.getData(), 0, photo.getData().length);
-
-                Frame frame = new Frame.Builder().setBitmap(mBitmap).build();
-                detector = new FaceDetector.Builder(getApplicationContext())
-                        .setTrackingEnabled(false)
-                        .build();
-                SafeFaceDetector safeFaceDetector = new SafeFaceDetector(detector);
-                SparseArray<Face> faces = safeFaceDetector.detect(frame);
-                safeFaceDetector.release();
-                mBitmap.recycle();
-                Log.i(TAG, "Face num : " + faces.size());
+                SparseArray<Face> faces = getFaces(photo.getData());
                 if (faces.size() > 0) {
 
                     for (int i = 0; i < faces.size(); i++) {
@@ -432,16 +425,46 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
             Log.i(TAG, "CompositePhotoTaken " + compositeNewImagePath);
             startCompositeMode();
         }
+
+        @Override
+        public void autoFocus(byte[] data) {
+
+            SparseArray<Face> facesArray = getFaces(data);
+            faceNumber = facesArray.size();
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    faceNumberTv.setText("Faces : " + faceNumber);
+                }
+            });
+        }
     };
 
-    private int captureNumByFormula(int faceNum) {
+    private SparseArray<Face> getFaces(byte[] data) {
+        Bitmap mBitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+
+        Frame frame = new Frame.Builder().setBitmap(mBitmap).build();
+        detector = new FaceDetector.Builder(getApplicationContext())
+                .setTrackingEnabled(false)
+                .build();
+        SafeFaceDetector safeFaceDetector = new SafeFaceDetector(detector);
+        SparseArray<Face> faces = safeFaceDetector.detect(frame);
+        safeFaceDetector.release();
+        mBitmap.recycle();
+        Log.i(TAG, "Face num : " + faces.size());
+
+        return faces;
+    }
+
+    private int getCaptureNumByFormula() {
 
         //초당 눈을 깜빡이는 횟수
         float x;
         //카메라의 셔터 스피드와 평균 눈깜빡이는 시간의 합
         float t;
 
-//        return 1/(1-x*t)*faceNum;
+//        return 1/(1-x*t)*faceNumber;
 
         return 5;
 
@@ -474,12 +497,11 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     @Override
     public void onCameraViewStarted(int height, int width) {
         mGrayscaleImage = new Mat(height, width, CvType.CV_8UC4);
-
+        faceDetectTimer.schedule(faceDeetecterTimerTask, 0, 3000);
     }
 
     @Override
     public void onCameraViewStopped() {
+        faceDetectTimer.cancel();
     }
-
-
 }
