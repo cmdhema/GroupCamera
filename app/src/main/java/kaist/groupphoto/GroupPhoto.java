@@ -6,14 +6,14 @@ package kaist.groupphoto;
 public class GroupPhoto {
     private byte[] data;
     private int eyesNum;
-    private String fileName;
+    private String filePath;
 
-    public String getFileName() {
-        return fileName;
+    public String getFilePath() {
+        return filePath;
     }
 
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
     }
 
     public byte[] getData() {

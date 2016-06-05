@@ -7,43 +7,38 @@ import android.graphics.Canvas;
 import android.hardware.Camera;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.util.SparseArray;
-
-import com.google.android.gms.vision.Frame;
-import com.google.android.gms.vision.face.Face;
-import com.google.android.gms.vision.face.FaceDetector;
 
 import org.opencv.android.JavaCameraView;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
-import kaist.groupphoto.GroupPhoto;
+import kaist.groupphoto.listener.PhotoTakenListener;
 
 /**
  * Created by meast on 2016/3/29.
  */
 public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallback {
 
-    private static final String TAG = "AutoCam::MyOpenCVView";
-    private String mPictureFileName;
+    private static final String TAG = "GroupPhoto:OpenCVView";
 
     protected ArrayList photoList;
-
-    private Bitmap mBitmap;
-    private Bitmap croppedBitmap;
 
     private int captureMode;
 
     private boolean isPreviewRunning = false;
 
-    private MaxEyesPhotoTakenListener maxEyesPhotoTakenListener;
+    private PhotoTakenListener photoTakenListener;
 
     int photoCounter = 5;
+    private boolean isMaxEyeDetectDone;
 
     public MyOpenCVView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -84,15 +79,13 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
         return mCamera.getParameters().getPreviewSize();
     }
 
-    public void takePicture(final String fileName, int mode, Bitmap croppedBitmap) {
+    public void takePicture(int mode) {
         Log.i(TAG, "Taking picture");
-        this.mPictureFileName = fileName;
+
         // Postview and jpeg are sent in the same buffers if the queue is not empty when performing a capture.
         // Clear up buffers to avoid mCamera.takePicture to be stuck because of a memory issue
         mCamera.setPreviewCallback(null);
         captureMode = mode;
-        this.croppedBitmap = croppedBitmap;
-        // PictureCallback is implemented by the current class
 
         if ( !isPreviewRunning ) {
             mCamera.takePicture(null, null, this);
@@ -103,55 +96,51 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 
     @Override
     public void onPictureTaken(byte[] data, Camera camera) {
-        Log.i(TAG, "Saving a bitmap to file");
+        Log.i(TAG, "onPictureTaken " + photoCounter +"times");
         // The camera preview was automatically stopped. Start it again.
         mCamera.setPreviewCallback(this);
 //        mCamera.stopPreview();
         mCamera.startPreview();
-
         if ( captureMode != Constant.MODE_COMPOSITE ) {
 
-            GroupPhoto photo = new GroupPhoto();
-            photo.setData(data);
-            photo.setFileName(mPictureFileName+".jpg");
-            photoList.add(photo);
-
-            if ( photoList.size() == 5 ) {
-//                mCamera.startPreview();
-                maxEyesPhotoTakenListener.takesPhotoDone(photoList);
-            }
-
-            if ( --photoCounter >= 0 )
-                mCamera.takePicture(null, null, this);
-            else
+            if ( isMaxEyeDetectDone ) {
                 photoCounter = 5;
-        } else {
-            mBitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
-            // Write the image in a file (in jpeg format)
-            try {
-                FileOutputStream fos = new FileOutputStream(mPictureFileName+".jpg");
+                photoList.clear();
+                savePhoto(data);
+            } else {
+                GroupPhoto photo = new GroupPhoto();
+                photo.setData(data);
+                photo.setFilePath(getSaveFileName());
+                photoList.add(photo);
 
-                fos.write(data);
-                fos.close();
+                if ( photoList.size() == 5 ) {
+                    isMaxEyeDetectDone = true;
+                    photoTakenListener.detectMaxEye(photoList);
+                }
 
-                compositeImage();
-            } catch (java.io.IOException e) {
-                Log.e(TAG, "Exception in photoCallback", e);
+                if ( --photoCounter > 0 )
+                    mCamera.takePicture(null, null, this);
+                else
+                    photoCounter = 5;
             }
+
+        } else {
+            savePhoto(data);
         }
     }
 
 
-    public void compositeImage( ) {
-        Bitmap newBitmap = mBitmap.copy(Bitmap.Config.ARGB_8888, true);
-        Canvas newCanvas = new Canvas(newBitmap);
-        newCanvas.drawBitmap(croppedBitmap, 0, 0, null);
-
+    public void savePhoto(byte[] data) {
+        FileOutputStream fos;
         try {
-            OutputStream os;
-            os = new FileOutputStream(mPictureFileName+"_"+".jpg");
-            newBitmap.compress(Bitmap.CompressFormat.PNG, 50, os);
-            os.close();
+            String fileName = getSaveFileName() +".jpg";
+            fos = new FileOutputStream(fileName);
+
+            fos.write(data);
+            fos.close();
+            Log.i(TAG, "Save Photo : " + fileName+".jpg");
+            Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+            photoTakenListener.compositePhotoTaken(fileName, bitmap);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -160,8 +149,19 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 
     }
 
-    public void setOnMaxEyesPhotoListener(MaxEyesPhotoTakenListener listener ) {
-        this.maxEyesPhotoTakenListener = listener;
+    public void setOnMaxEyesPhotoListener(PhotoTakenListener listener ) {
+        this.photoTakenListener = listener;
     }
 
+    private String getSaveFileName() {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss_S");
+        String currentDateandTime = sdf.format(new Date());
+        String saveDir = Constant.PHOTO_DIR;
+        File dirCheck = new File(saveDir);
+        if(!dirCheck.exists()) {
+            dirCheck.mkdirs();
+        }
+        return saveDir + currentDateandTime;
+
+    }
 }
