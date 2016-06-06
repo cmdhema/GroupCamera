@@ -77,7 +77,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
     private int faceNumber;
 
-    private int captureMode = 0;
+    private int captureMode = Constant.MODE_FULL;
 
     private Mat mGrayscaleImage;
 
@@ -94,13 +94,17 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     private ProgressDialog dialog;
 
     private Timer faceDetectTimer;
+    private FaceDetectorTimerTask faceDetectorTimerTask;
 
-    private TimerTask faceDeetecterTimerTask = new TimerTask() {
+    private class FaceDetectorTimerTask extends TimerTask {
+
         @Override
         public void run() {
-            takePicture();
+            mOpenCvCameraView.takePicture(Constant.MODE_NONE);
         }
-    };
+    }
+
+    private boolean isTimerRunning;
 
     private void compositeImage(int direction, float xPoint) {
         Log.i(TAG, direction +", " + xPoint);
@@ -195,7 +199,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
                         dialog = ProgressDialog.show(CameraActivity.this, "사진 촬영", "사진 촬영중입니다. 핸드폰을 고정해주세요", true);
                     }
                 });
-
+                faceDetectorTimerTask.cancel();
                 takePicture();
             }
         });
@@ -300,8 +304,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
                 break;
             case Constant.MODE_COMPOSITE:
                 mOpenCvCameraView.takePicture(captureMode);
-            case Constant.MODE_NONE:
-                mOpenCvCameraView.takePicture();
+                break;
         }
 
     }
@@ -428,7 +431,7 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
 
         @Override
         public void autoFocus(byte[] data) {
-
+            Log.i(TAG, "AutoFocus");
             SparseArray<Face> facesArray = getFaces(data);
             faceNumber = facesArray.size();
 
@@ -497,11 +500,20 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     @Override
     public void onCameraViewStarted(int height, int width) {
         mGrayscaleImage = new Mat(height, width, CvType.CV_8UC4);
-        faceDetectTimer.schedule(faceDeetecterTimerTask, 0, 3000);
+
+        if ( !isTimerRunning ) {
+            isTimerRunning = true;
+            faceDetectorTimerTask = new FaceDetectorTimerTask();
+            faceDetectTimer.schedule(faceDetectorTimerTask, 0, 3000);
+        } else {
+            faceDetectTimer = new Timer();
+            faceDetectorTimerTask = new FaceDetectorTimerTask();
+            faceDetectTimer.schedule(faceDetectorTimerTask,0, 3000);
+        }
     }
 
     @Override
     public void onCameraViewStopped() {
-        faceDetectTimer.cancel();
+//        faceDetectTimer.cancel();
     }
 }

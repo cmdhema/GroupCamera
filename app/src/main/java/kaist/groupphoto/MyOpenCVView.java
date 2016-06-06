@@ -4,8 +4,11 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.hardware.Camera;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.widget.Toast;
 
 import org.opencv.android.JavaCameraView;
 
@@ -79,28 +82,43 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 //        return mCamera.getParameters().getPreviewSize();
 //    }
 
-    public void takePicture() {
-        mCamera.setPreviewCallback(null);
+    public void takePicture(int mode) {
+        Log.i(TAG, "Taking picture");
+
+        // Clear up buffers to avoid mCamera.takePicture to be stuck because of a memory issue
+//        mCamera.release();
+//        mCamera.setPreviewCallback(null);
+        captureMode = mode;
 
         if ( !isPreviewRunning ) {
-            mCamera.takePicture(null, null, this);
+            if ( mCamera != null ) {
+                mCamera.startPreview();
+                try {
+                    mCamera.takePicture(null, null, this);
+                } catch (RuntimeException e) {
+                    showToast();
+                }
+
+            }
             isPreviewRunning = false;
         } else
             return;
     }
-    public void takePicture(int mode) {
-        Log.i(TAG, "Taking picture");
 
-        // Postview and jpeg are sent in the same buffers if the queue is not empty when performing a capture.
-        // Clear up buffers to avoid mCamera.takePicture to be stuck because of a memory issue
-        mCamera.setPreviewCallback(null);
-        captureMode = mode;
-
-        if ( !isPreviewRunning ) {
-            mCamera.takePicture(null, null, this);
-            isPreviewRunning = false;
-        } else
-            return;
+    private void showToast() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Looper.prepare();
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(getContext(), "다시 시도해주세요", Toast.LENGTH_SHORT).show();
+                    }
+                }, 10);
+                Looper.loop();
+            }
+        }).start();
     }
 
     public void takePicture(int mode, int pictureNum) {
@@ -108,11 +126,20 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
         photoNum = pictureNum;
         captureMode = mode;
 
-        mCamera.setPreviewCallback(null);
+//        mCamera.setPreviewCallback(null);
         captureMode = mode;
 
         if ( !isPreviewRunning ) {
-            mCamera.takePicture(null, null, this);
+            if ( mCamera != null ) {
+                mCamera.startPreview();
+                try {
+                    mCamera.takePicture(null, null, this);
+                } catch (RuntimeException e) {
+
+                    showToast();
+
+                }
+            }
             isPreviewRunning = false;
         } else
             return;
@@ -122,14 +149,14 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
     public void onPictureTaken(byte[] data, Camera camera) {
         Log.i(TAG, "onPictureTaken " + photoCounter +"times");
         mCamera.setPreviewCallback(this);
-        mCamera.startPreview();
 
-        if ( captureMode == Constant.MODE_NONE)
+        if ( (captureMode == Constant.MODE_NONE) && ( photoCounter == photoNum ) )
             photoTakenListener.autoFocus(data);
-
-        if ( captureMode == Constant.MODE_FULL || captureMode == Constant.MODE_COMPOSITE ) {
+        else if ( captureMode == Constant.MODE_FULL || captureMode == Constant.MODE_COMPOSITE ) {
 
             if ( isMaxEyeDetectDone ) {
+                isMaxEyeDetectDone = false;
+                Log.i(TAG, "PhotoNum : " + photoNum);
                 photoCounter = photoNum;
                 photoList.clear();
                 savePhoto(data);
