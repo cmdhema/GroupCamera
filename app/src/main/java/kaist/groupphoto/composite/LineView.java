@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.support.v7.app.AlertDialog;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -17,7 +18,7 @@ import kaist.groupphoto.listener.CompositeListener;
  * Created by kjwook on 2016. 6. 3..
  */
 public class LineView extends View implements View.OnTouchListener {
-
+    private static final String TAG = "GroupPhoto:LineView";
     private CompositeListener listener;
 
     private Context mContext;
@@ -71,7 +72,7 @@ public class LineView extends View implements View.OnTouchListener {
     @Override
     public boolean onTouch(View view, MotionEvent motionEvent) {
         linePointX = motionEvent.getX();
-
+        Log.i(TAG, "xPoint : " + linePointX);
         if (motionEvent.getAction() == MotionEvent.ACTION_UP) {
             if ( isLineSelected )
                 showAreaSelectDialog();

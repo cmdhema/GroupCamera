@@ -1,9 +1,8 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:orientation="horizontal"
-    android:layout_height="match_parent" >
-
+    android:layout_height="match_parent"
+    android:keepScreenOn="true"
+    android:id="@+id/camera_layout">
 
     <RelativeLayout
         android:id="@+id/view_container"
@@ -37,25 +36,48 @@
 
     </RelativeLayout>
 
+    <LinearLayout
+        android:id="@+id/settingsField"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentTop="true"
+        android:orientation="vertical">
 
-    <RelativeLayout
-        android:orientation="vertical"
-        android:layout_weight="8"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <Spinner
-            android:id="@+id/spinner_mode"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"></Spinner>
-
-        <Button
-            android:id="@+id/btn_capture"
-            android:layout_centerInParent="true"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="촬영"/>
-    </RelativeLayout>
+        <ImageButton
+            android:id="@+id/settings"
+            style="@style/SettingsButton"
+            android:layout_width="68dp"
+            android:layout_height="68dp"
+            android:layout_marginLeft="18dp"
+            android:scaleType="center"
+            android:onClick="showSettings"/>
+    </LinearLayout>
 
 
-</LinearLayout>
+    <ImageButton
+        android:id="@+id/btn_capture"
+        style="@style/RecordInactive"
+        android:layout_width="68dp"
+        android:layout_height="68dp"
+        android:layout_alignParentRight="true"
+        android:layout_centerVertical="true"
+        android:layout_marginLeft="18dp"
+        android:scaleType="center"
+        android:onClick="toggleStreaming"
+        android:adjustViewBounds="true"/>
+
+    <ImageButton
+        android:id="@+id/preview"
+        style="@style/PreviewButton"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginLeft="18dp"
+        android:layout_marginBottom="8dp"
+        android:scaleType="centerCrop"/>
+
+</RelativeLayout>
+
+
+

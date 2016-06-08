@@ -12,6 +12,18 @@ public class Constant {
     public static final int MODE_COMPOSITE = 12;
     public static final int MODE_NONE = 13;
 
+    public enum CEModeType {
+        AUTO(0), MANUAL(1);
+        private final int value;
+
+        private CEModeType(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return value;
+        }
+    }
     public static final String PHOTO_DIR = Environment.getExternalStorageDirectory().getPath() + "/DCIM/GroupPhoto/";
 
     public static final int SELECT_AREA_LEFT = 100;

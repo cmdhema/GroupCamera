@@ -8,4 +8,40 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <style name="RoundBorderButton">
+        <item name="android:background">@drawable/round_border_button</item>
+        <item name="android:layout_centerVertical">true</item>
+        <item name="android:layout_width">72dp</item>
+        <item name="android:layout_height">72dp</item>
+    </style>
+
+    <style name="SettingsButton" parent="RoundBorderButton">
+        <item name="android:src">@drawable/settings</item>
+    </style>
+
+    <style name="RoundButton">
+        <item name="android:background">@drawable/round_button</item>
+        <item name="android:layout_centerVertical">true</item>
+        <item name="android:layout_width">72dp</item>
+        <item name="android:layout_height">72dp</item>
+    </style>
+
+    <style name="RoundFocusRect">
+        <item name="android:background">@drawable/round_focus_rect</item>
+        <item name="android:layout_centerVertical">true</item>
+        <item name="android:layout_width">72dp</item>
+        <item name="android:layout_height">72dp</item>
+    </style>
+
+    <style name="PreviewButton">
+        <item name="android:background">@drawable/round_rect</item>
+        <item name="android:layout_width">128dp</item>
+        <item name="android:layout_height">96dp</item>
+        <item name="android:padding">8dp</item>
+    </style>
+
+    <style name="RecordInactive" parent="RoundButton">
+        <item name="android:src">@drawable/rec_inact</item>
+    </style>
+
 </resources>

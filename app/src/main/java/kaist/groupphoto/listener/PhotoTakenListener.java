@@ -14,4 +14,5 @@ public interface PhotoTakenListener {
     void detectMaxEye(List<GroupPhoto> photos);
     void compositePhotoTaken(String imagePath, Bitmap bitmap);
     void autoFocus(byte[] data);
+    void takePhotoError();
 }

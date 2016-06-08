@@ -20,13 +20,15 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import kaist.groupphoto.listener.PhotoTakenListener;
 
 /**
  * Created by meast on 2016/3/29.
  */
-public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallback {
+public class MyOpenCVView extends JavaCameraView  {
 
     private static final String TAG = "GroupPhoto:OpenCVView";
 
@@ -43,9 +45,67 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 
     private boolean isMaxEyeDetectDone;
 
+    private Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {
+        @Override
+        public void onPictureTaken(byte[] data, Camera camera) {
+            Log.i(TAG, "onPictureTaken " + photoCounter +"times");
+//            mCamera.setPreviewCallback(pictureCallback);
+
+            if ( (captureMode == Constant.MODE_NONE) && ( photoCounter == photoNum ) )
+                photoTakenListener.autoFocus(data);
+            else if ( captureMode == Constant.MODE_FULL || captureMode == Constant.MODE_COMPOSITE ) {
+
+                if ( isMaxEyeDetectDone ) {
+                    isMaxEyeDetectDone = false;
+                    Log.i(TAG, "PhotoNum : " + photoNum);
+                    photoCounter = photoNum;
+                    photoList.clear();
+                    savePhoto(data);
+                } else {
+                    GroupPhoto photo = new GroupPhoto();
+                    photo.setData(data);
+                    photo.setFilePath(getSaveFileName());
+                    photoList.add(photo);
+
+                    if ( photoList.size() == photoNum ) {
+                        isMaxEyeDetectDone = true;
+                        photoTakenListener.detectMaxEye(photoList);
+                    }
+
+                    if ( --photoCounter > 0 ) {
+                        try {
+                            new Timer().schedule(new TimerTask() {
+                                @Override
+                                public void run() {
+                                    mCamera.takePicture(null, null, pictureCallback);
+                                }
+                            },100);
+
+                        } catch (RuntimeException e) {
+                            e.printStackTrace();
+                            showToast();
+                            isMaxEyeDetectDone = false;
+                            photoCounter = photoNum;
+                            photoList.clear();
+                            mCamera.startPreview();
+                            photoTakenListener.takePhotoError();
+                            return;
+                        }
+
+                    }
+                    else
+                        photoCounter = photoNum;
+                }
+
+            } else if ( captureMode == Constant.MODE_COMPOSITE ){
+                savePhoto(data);
+            }
+        }
+    };
     public MyOpenCVView(Context context, AttributeSet attrs) {
         super(context, attrs);
         photoList = new ArrayList();
+
 //
     }
 
@@ -77,6 +137,12 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
 //        mMaxWidth = resolution.width;
 //        connectCamera(getWidth(), getHeight());
 //    }
+
+    public void setResolution() {
+        Camera.Parameters parameters = mCamera.getParameters();
+        parameters.setPictureSize(1280, 720);
+        mCamera.setParameters(parameters);
+    }
 //
 //    public Camera.Size getResolution() {
 //        return mCamera.getParameters().getPreviewSize();
@@ -94,9 +160,15 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
             if ( mCamera != null ) {
                 mCamera.startPreview();
                 try {
-                    mCamera.takePicture(null, null, this);
+                    new Timer().schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            mCamera.takePicture(null, null, pictureCallback);
+                        }
+                    },100);
                 } catch (RuntimeException e) {
                     showToast();
+                    photoTakenListener.takePhotoError();
                 }
 
             }
@@ -133,53 +205,21 @@ public class MyOpenCVView extends JavaCameraView implements Camera.PictureCallba
             if ( mCamera != null ) {
                 mCamera.startPreview();
                 try {
-                    mCamera.takePicture(null, null, this);
+                    new Timer().schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            mCamera.takePicture(null, null, pictureCallback);
+                        }
+                    },100);
                 } catch (RuntimeException e) {
 
                     showToast();
-
+                    photoTakenListener.takePhotoError();
                 }
             }
             isPreviewRunning = false;
         } else
             return;
-    }
-
-    @Override
-    public void onPictureTaken(byte[] data, Camera camera) {
-        Log.i(TAG, "onPictureTaken " + photoCounter +"times");
-        mCamera.setPreviewCallback(this);
-
-        if ( (captureMode == Constant.MODE_NONE) && ( photoCounter == photoNum ) )
-            photoTakenListener.autoFocus(data);
-        else if ( captureMode == Constant.MODE_FULL || captureMode == Constant.MODE_COMPOSITE ) {
-
-            if ( isMaxEyeDetectDone ) {
-                isMaxEyeDetectDone = false;
-                Log.i(TAG, "PhotoNum : " + photoNum);
-                photoCounter = photoNum;
-                photoList.clear();
-                savePhoto(data);
-            } else {
-                GroupPhoto photo = new GroupPhoto();
-                photo.setData(data);
-                photo.setFilePath(getSaveFileName());
-                photoList.add(photo);
-
-                if ( photoList.size() == photoNum ) {
-                    isMaxEyeDetectDone = true;
-                    photoTakenListener.detectMaxEye(photoList);
-                }
-
-                if ( --photoCounter > 0 )
-                    mCamera.takePicture(null, null, this);
-                else
-                    photoCounter = photoNum;
-            }
-
-        } else if ( captureMode == Constant.MODE_COMPOSITE ){
-            savePhoto(data);
-        }
     }
 
 
