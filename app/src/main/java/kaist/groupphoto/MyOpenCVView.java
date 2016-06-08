@@ -53,7 +53,7 @@ public class MyOpenCVView extends JavaCameraView  {
 
             if ( (captureMode == Constant.MODE_NONE) && ( photoCounter == photoNum ) )
                 photoTakenListener.autoFocus(data);
-            else if ( captureMode == Constant.MODE_FULL || captureMode == Constant.MODE_COMPOSITE ) {
+            else if ( captureMode == Constant.MODE_FULL || captureMode == Constant.MODE_EYE_DETECTION ) {
 
                 if ( isMaxEyeDetectDone ) {
                     isMaxEyeDetectDone = false;

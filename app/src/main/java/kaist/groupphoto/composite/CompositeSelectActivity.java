@@ -25,8 +25,16 @@ public class CompositeSelectActivity extends Activity {
         lineView = (LineView) findViewById(R.id.view_line);
 
         lineView.setOnCompositeListener(compositeListener);
-        String imagePath = getIntent().getStringExtra("path");
-        Bitmap image = BitmapFactory.decodeFile(imagePath+".jpg");
+        String imagePath="";
+        Bitmap image = null;
+        if ( getIntent().getStringExtra("name") != null ) {
+            imagePath = getIntent().getStringExtra("name");
+            image = BitmapFactory.decodeFile(imagePath);
+        }
+        else if ( getIntent().getStringExtra("path") != null ) {
+            imagePath = getIntent().getStringExtra("path");
+            image = BitmapFactory.decodeFile(imagePath+".jpg");
+        }
 
         imageView.setImageBitmap(image);
 

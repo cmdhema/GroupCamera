@@ -42,9 +42,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".composite.CompositeSelectActivity"
+        <activity
+            android:name=".composite.CompositeSelectActivity"
             android:configChanges="keyboardHidden|orientation"
-            android:screenOrientation="landscape"></activity>
+            android:screenOrientation="landscape" />
+        <activity android:name=".ImageActivity"></activity>
     </application>
 
 </manifest>

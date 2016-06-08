@@ -7,10 +7,10 @@ import android.os.Environment;
  */
 public class Constant {
 
-    public static final int MODE_FULL = 10;
-    public static final int MODE_EYE_DETECTION = 11;
-    public static final int MODE_COMPOSITE = 12;
-    public static final int MODE_NONE = 13;
+    public static final int MODE_FULL = 0;
+    public static final int MODE_EYE_DETECTION = 1;
+    public static final int MODE_COMPOSITE = 2;
+    public static final int MODE_NONE = 3;
 
     public enum CEModeType {
         AUTO(0), MANUAL(1);

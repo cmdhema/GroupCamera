@@ -33,8 +33,11 @@ import java.util.List;
 
 import kaist.groupphoto.CameraActivity;
 import kaist.groupphoto.R;
+import kaist.groupphoto.listener.SpinnerSelectListener;
 
 public class CameraSettingsPopup {
+
+    private SpinnerSelectListener listener;
 
     private Context context;
     private static int mCameraModeSelectedItem, mCEModeSelectedItem;
@@ -42,6 +45,9 @@ public class CameraSettingsPopup {
     private String mSelectedCameraMode, mSelectedCEMode;
     CameraActivity cameraActivity;
 
+    public void setOnSpinnerSelectListener(SpinnerSelectListener listener) {
+        this.listener = listener;
+    }
 
     public CameraSettingsPopup(Context context) {
         this.context = context;
@@ -116,19 +122,13 @@ public class CameraSettingsPopup {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 dialog.dismiss();
-
-                mSelectedCameraMode = String.valueOf(mCameraModeSpinner.getSelectedItem());
-                mSelectedCEMode = String.valueOf(mCEModeSpinner.getSelectedItem());
-
-                mCameraModeSelectedItem = mCameraModeSpinner.getSelectedItemPosition();
-                mCEModeSelectedItem = mCEModeSpinner.getSelectedItemPosition();
-
-                cameraActivity.sendCameraModeMsg(mSelectedCameraMode);
-                Toast.makeText(context, "Camera Mode: " + mSelectedCameraMode + "\nClosed-Eye Save Mode: " + mSelectedCEMode, Toast.LENGTH_SHORT).show();
+                listener.onItemSelect(mCameraModeSpinner.getSelectedItemPosition());
             }
         });
 
         AlertDialog dialog = alert.create();
         dialog.show();
     }
+
+
 }
