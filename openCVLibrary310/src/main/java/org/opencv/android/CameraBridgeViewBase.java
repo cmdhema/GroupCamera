@@ -65,7 +65,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
 
     public CameraBridgeViewBase(Context context, AttributeSet attrs) {
         super(context, attrs);
-
+        
         int count = attrs.getAttributeCount();
         Log.d(TAG, "Attr count: " + Integer.valueOf(count));
 

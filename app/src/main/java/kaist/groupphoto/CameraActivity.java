@@ -45,6 +45,7 @@ import org.opencv.objdetect.CascadeClassifier;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -340,8 +341,6 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
                 drawHidden(mat, eyesArray);
             }
         }).start();
-
-
     }
 
     private void drawHidden(Mat mat,Rect[] eyesArray) {
@@ -505,24 +504,49 @@ public class CameraActivity extends Activity  implements CameraBridgeViewBase.Cv
     private PhotoTakenListener photoTakenListener = new PhotoTakenListener() {
         @Override
         public void detectMaxEye(List<GroupPhoto> photos) {
+            File file = new File(Constant.PHOTO_DIR+System.currentTimeMillis()+".txt");
+            FileWriter fw = null;
             int eyesNum = 0;
-            Log.i(TAG, "Photo list size : " + photos.size());
             for ( GroupPhoto photo : photos) {
                 SparseArray<Face> faces = getFaces(photo.getData());
                 if (faces.size() > 0) {
 
                     for (int i = 0; i < faces.size(); i++) {
                         Face face = faces.valueAt(i);
+                        Log.i(TAG, "Left eye : " + face.getIsLeftEyeOpenProbability() +", " + "Right eye : " + face.getIsRightEyeOpenProbability());
+                        if (face.getIsLeftEyeOpenProbability() >= 0.2) {
+                            Log.i(TAG, "Left Eye open!");
+                            eyesNum++;
+                        } else
+                            Log.i(TAG, "Left Eye close!");
+                        if (face.getIsRightEyeOpenProbability() >= 0.2) {
+                            Log.i(TAG, "Right Eye open!");
+                            eyesNum++;
+                        } else {
+                            Log.i(TAG, "Right Eye close!");
+                        }
 
-                        if (face.getIsLeftEyeOpenProbability() >= 0.5)
-                            eyesNum++;
-                        if (face.getIsRightEyeOpenProbability() >= 0.5)
-                            eyesNum++;
+                        Log.i(TAG, "Open Eye number : " + eyesNum +"\n");
                     }
-                } else
+                } else {
                     eyesNum = 0;
-
+                    Log.i(TAG, "All eye close");
+                }
+                try {
+                    fw = new FileWriter(file, true);
+                    fw.write("Eye number : " + eyesNum +"\n");
+                    fw.flush();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                Log.i(TAG, "All Eye number : " + eyesNum +"\n");
                 photo.setEyesNum(eyesNum);
+            }
+
+            try {
+                fw.close();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
             saveMaxEyesPhoto(photos);
         }
