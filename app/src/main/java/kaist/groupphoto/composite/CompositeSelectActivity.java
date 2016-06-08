@@ -29,11 +29,11 @@ public class CompositeSelectActivity extends Activity {
         Bitmap image = null;
         if ( getIntent().getStringExtra("name") != null ) {
             imagePath = getIntent().getStringExtra("name");
-            image = BitmapFactory.decodeFile(imagePath);
+            image = BitmapFactory.decodeFile(imagePath+".jpg");
         }
         else if ( getIntent().getStringExtra("path") != null ) {
             imagePath = getIntent().getStringExtra("path");
-            image = BitmapFactory.decodeFile(imagePath+".jpg");
+            image = BitmapFactory.decodeFile(imagePath);
         }
 
         imageView.setImageBitmap(image);
@@ -45,7 +45,6 @@ public class CompositeSelectActivity extends Activity {
 
         @Override
         public void areaSelectDone(int direction, float xPoint) {
-//            compositeImage(direction, xPoint);
             Intent intent = new Intent();
             intent.putExtra("direction", direction);
             intent.putExtra("xPoint", xPoint);

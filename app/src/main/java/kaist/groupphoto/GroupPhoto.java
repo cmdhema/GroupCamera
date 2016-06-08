@@ -1,5 +1,9 @@
 package kaist.groupphoto;
 
+import android.util.SparseArray;
+
+import com.google.android.gms.vision.face.Face;
+
 /**
  * Created by kjwook on 2016. 5. 18..
  */
@@ -7,6 +11,15 @@ public class GroupPhoto {
     private byte[] data;
     private int eyesNum;
     private String filePath;
+    private SparseArray<Face> faces;
+
+    public SparseArray<Face> getFaces() {
+        return faces;
+    }
+
+    public void setFaces(SparseArray<Face> faces) {
+        this.faces = faces;
+    }
 
     public String getFilePath() {
         return filePath;
