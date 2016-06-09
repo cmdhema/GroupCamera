@@ -149,10 +149,11 @@ public class CameraSurfaceView extends ViewGroup implements SurfaceHolder.Callba
             public void onPictureTaken(byte[] data) {
                 GroupPhoto photo = new GroupPhoto();
                 if ( data != null ) {
-//                    Log.i(TAG, "Landmark : " + detectionResults.getDetectedItems().size() + ", " + "data : " + data.length);
+                    Log.i(TAG, "data : " + data.length);
 
                     photo.setData(data);
                     photo.setFilePath(getSaveFileName());
+
 
                     if ( detectionResults == null )
                         photo.setFaces(null);
@@ -174,13 +175,26 @@ public class CameraSurfaceView extends ViewGroup implements SurfaceHolder.Callba
         FileOutputStream fos;
         try {
             String fileName = getSaveFileName();
-            fos = new FileOutputStream(fileName);
+            fos = new FileOutputStream(fileName+"jpg");
 
             fos.write(data);
             fos.close();
             Log.i(TAG, "Save Photo : " + fileName+".jpg");
-            Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
-            photoTakenListener.compositePhotoTaken(fileName, bitmap);
+//            Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+
+
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = 2;
+
+
+            Bitmap src = BitmapFactory.decodeByteArray(data,0,data.length);
+
+            if ( src.getWidth() > 2000) {
+                 src = Bitmap.createScaledBitmap(src, 640, 480, true);
+            }
+
+
+            photoTakenListener.compositePhotoTaken(fileName, src);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -209,10 +223,8 @@ public class CameraSurfaceView extends ViewGroup implements SurfaceHolder.Callba
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-//        int width = 320;
-//        int height = 240;
-        int width = 0;
-        int height = 0;
+        int width = 1;
+        int height = 1;
         if (mCameraSource != null) {
             Size size = mCameraSource.getPreviewSize();
             if (size != null) {
@@ -220,9 +232,7 @@ public class CameraSurfaceView extends ViewGroup implements SurfaceHolder.Callba
                 height = size.getHeight();
             }
         }
-
-        // Swap width and height sizes when in portrait, since it will be rotated 90 degrees
-
+        Log.i(TAG, "Width : " + width +", " +"Height : " + height +", " + "Right : " + right +", " + "Left : " + left);
         final int layoutWidth = right - left;
         final int layoutHeight = bottom - top;
 
@@ -230,6 +240,7 @@ public class CameraSurfaceView extends ViewGroup implements SurfaceHolder.Callba
         int childWidth = layoutWidth;
         int childHeight = (int)(((float) layoutWidth / (float) width) * height);
 
+        Log.i(TAG, "layout childwidth : " + childWidth +", " + "childheight : " + childHeight + ", " + "height : " + layoutHeight);
         // If height is too tall using fit width, does fit height instead.
         if (childHeight > layoutHeight) {
             childHeight = layoutHeight;
@@ -237,7 +248,7 @@ public class CameraSurfaceView extends ViewGroup implements SurfaceHolder.Callba
         }
 
         for (int i = 0; i < getChildCount(); ++i) {
-            getChildAt(i).layout(0, 0, childWidth, childHeight);
+            getChildAt(i).layout(0, 0, (int)childWidth, (int)childHeight);
         }
 
         try {

@@ -25,11 +25,13 @@
             android:layout_gravity="left"/>
 
         <TextView
+            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Closed Eye Mode Settings"/>
 
         <Spinner
+            android:visibility="gone"
             android:id="@+id/ce_mode_settings"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

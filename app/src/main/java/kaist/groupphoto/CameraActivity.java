@@ -108,6 +108,9 @@ public class CameraActivity extends Activity {
 
     private boolean afterGallerySelected;
     private boolean isFirstCapture = true;
+    private ImageView tutIv;
+
+    private int tutCount = 0;
 
     private void compositeImage(int direction, float xPoint) {
         xPoint /= 2;
@@ -123,7 +126,7 @@ public class CameraActivity extends Activity {
                 Bitmap bmOverlay = Bitmap.createBitmap(compositeNewImage.getWidth(), compositeNewImage.getHeight(), compositeNewImage.getConfig());
                 Canvas canvas = new Canvas(bmOverlay);
                 canvas.drawBitmap(Bitmap.createBitmap(compositeNewImage, 0, 0, compositeNewImage.getWidth(), compositeNewImage.getHeight()), 0, 0, null);
-                Bitmap originalImage = Bitmap.createBitmap(compositeOriginalImage, 0, 0, (int) (xPoint), compositeOriginalImage.getHeight());
+                Bitmap originalImage = Bitmap.createBitmap(compositeOriginalImage, 0, 0, (int) (xPoint)+40 , compositeOriginalImage.getHeight());
                 canvas.drawBitmap(originalImage, 0, 0, null);
                 bmOverlay.compress(Bitmap.CompressFormat.PNG, 50, os);
                 os.close();
@@ -131,7 +134,7 @@ public class CameraActivity extends Activity {
                 Bitmap bmOverlay = Bitmap.createBitmap(compositeOriginalImage.getWidth(), compositeOriginalImage.getHeight(), compositeNewImage.getConfig());
                 Canvas canvas = new Canvas(bmOverlay);
                 canvas.drawBitmap(Bitmap.createBitmap(compositeOriginalImage, 0, 0, compositeOriginalImage.getWidth(), compositeOriginalImage.getHeight()), 0, 0, null);
-                Bitmap newImage = Bitmap.createBitmap(compositeNewImage, 0, 0, (int) xPoint, compositeOriginalImage.getHeight());
+                Bitmap newImage = Bitmap.createBitmap(compositeNewImage, 0, 0, (int) xPoint +45 , compositeOriginalImage.getHeight());
                 canvas.drawBitmap(newImage, 0, 0, null);
                 bmOverlay.compress(Bitmap.CompressFormat.PNG, 50, os);
                 os.close();
@@ -156,7 +159,25 @@ public class CameraActivity extends Activity {
     }
 
     private void setButtonViewIDs() {
+        tutIv = (ImageView) findViewById(R.id.iv_tut);
+        tutIv.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
 
+                tutCount++;
+               if (tutCount == 1 )
+                    tutIv.setImageResource(R.drawable.tut2);
+                else if ( tutCount == 2)
+                    tutIv.setImageResource(R.drawable.tut3);
+                else if ( tutCount == 3)
+                    tutIv.setImageResource(R.drawable.tut4);
+                else if ( tutCount == 4) {
+                    tutIv.setVisibility(View.GONE);
+                    tutCount = 0;
+                }
+
+            }
+        });
         overlayView = (ImageView) findViewById(R.id.iv_overlay);
         faceNumberTv = (TextView) findViewById(R.id.tv_face_number);
         cameraPreview = (CameraSurfaceView) findViewById(R.id.view_preview);
@@ -176,7 +197,13 @@ public class CameraActivity extends Activity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        dialog = ProgressDialog.show(CameraActivity.this, "사진 촬영", "사진 촬영중입니다. 핸드폰을 고정해주세요", true);
+                        try {
+                            dialog = ProgressDialog.show(CameraActivity.this, "사진 촬영", "사진 촬영중입니다. 핸드폰을 고정해주세요", true);
+                        }catch (Exception e ) {
+                            if ( dialog != null )
+                                dialog.dismiss();
+                        }
+
                     }
                 });
                 takePicture();
@@ -308,7 +335,6 @@ public class CameraActivity extends Activity {
                 .build();
     }
 
-
     private void saveMaxEyesPhoto(List<GroupPhoto> photoList) {
         Collections.sort(photoList, new Comparator<GroupPhoto>() {
             @Override
@@ -318,14 +344,45 @@ public class CameraActivity extends Activity {
         });
 
         GroupPhoto maxEyePhoto = photoList.get(0);
+//        compositeOriginalImagePath = maxEyePhoto.getFilePath();
 
+
+        FileOutputStream fos = null;
         try {
-            Log.i(TAG, "saveMaxEyesPhoto, Eye : " + maxEyePhoto.getEyesNum() + ", " + "Path : " + maxEyePhoto.getFilePath());
-            FileOutputStream fos = new FileOutputStream(maxEyePhoto.getFilePath() + ".jpg");
+            fos = new FileOutputStream(maxEyePhoto.getFilePath() + ".jpg");
             fos.write(maxEyePhoto.getData());
             fos.close();
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+        try {
+
+            for ( GroupPhoto photo : photoList) {
+                fos = new FileOutputStream(photo.getFilePath()+"eye_"+photo.getEyesNum() + ".jpg");
+                fos.write(photo.getData());
+                fos.close();
+            }
+//            Log.i(TAG, "saveMaxEyesPhoto, Eye : " + maxEyePhoto.getEyesNum() + ", " + "Path : " + maxEyePhoto.getFilePath());
+//            FileOutputStream fos = new FileOutputStream(maxEyePhoto.getFilePath() + ".jpg");
+//            fos.write(maxEyePhoto.getData());
+//            fos.close();
             compositeOriginalImagePath = maxEyePhoto.getFilePath();
-            compositeOriginalImage = BitmapFactory.decodeFile(compositeOriginalImagePath + ".jpg");
+//            compositeOriginalImage = BitmapFactory.decodeFile(compositeOriginalImagePath + ".jpg");
+
+            if ( BitmapFactory.decodeFile(compositeOriginalImagePath+".jpg").getWidth() > 2000) {
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inSampleSize = 2;
+
+                Bitmap src = BitmapFactory.decodeFile(compositeOriginalImagePath+ ".jpg", options);
+                compositeOriginalImage = Bitmap.createScaledBitmap(src, 640, 480, true);
+
+            }
+
             if (captureMode == Constant.MODE_FULL) {
                 overlayImage(compositeOriginalImage);
             } else if (captureMode == Constant.MODE_EYE_DETECTION) {
@@ -486,7 +543,7 @@ public class CameraActivity extends Activity {
                 }
                 try {
                     fw = new FileWriter(file, true);
-                    fw.write("Eye number : " + eyesNum + "\n");
+                    fw.write("Eye number : " + eyesNum + "\r\n");
                     fw.flush();
                 } catch (IOException e) {
                     e.printStackTrace();
